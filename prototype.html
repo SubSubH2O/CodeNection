@@ -31,6 +31,117 @@
   .topbar .eyebrow{ font-size:12px; color:var(--ink-soft); margin:0 0 2px; }
   .topbar h1{ font-family:var(--serif); font-size:24px; margin:0; font-weight:500; }
 
+  /* pet companion */
+  .pet-card{ display:inline-flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:100px; padding:3px 12px 3px 5px; cursor:pointer; transition:transform .15s ease, box-shadow .15s ease; user-select:none; margin-top:2px; }
+  .pet-card:hover{ transform:translateY(-1px); box-shadow:0 3px 10px rgba(0,0,0,0.06); }
+  .pet-card:active{ transform:scale(0.96); }
+  .pet-avatar{ width:36px; height:36px; position:relative; border-radius:50%; background:#EFECE6; display:flex; align-items:center; justify-content:center; }
+  .pet-cat-svg{ width:34px; height:34px; animation:catBreathe 3.6s ease-in-out infinite; transform-origin:center bottom; }
+  .cat-ears{ transition:transform .2s ease; transform-origin:center 40px; }
+  .pet-card:hover .cat-ears{ transform:scale(1.05); }
+  .pet-meta{ display:flex; flex-direction:column; line-height:1.2; }
+  .pet-name{ font-size:11.5px; font-weight:600; color:var(--ink); }
+  .pet-mood-tag{ font-size:9.5px; color:var(--ink-soft); }
+  .pet-heart{ position:absolute; top:-8px; right:-2px; font-size:12px; opacity:0; pointer-events:none; transition:transform .45s cubic-bezier(0.2, 0.9, 0.3, 1), opacity .45s ease; transform:translateY(0) scale(0.6); }
+  .pet-heart.pop{ opacity:1; transform:translateY(-14px) scale(1.2); }
+  @keyframes catBreathe { 0%, 100%{ transform:scale(1); } 50%{ transform:scale(1.03, 0.97); } }
+
+  /* Free-roaming cat companion */
+  .roaming-cat{
+    position: absolute;
+    width: 62px;
+    height: 50px;
+    z-index: 22;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    transition: left 1.8s cubic-bezier(0.25, 1, 0.5, 1), top 1.8s cubic-bezier(0.25, 1, 0.5, 1);
+    filter: drop-shadow(0 4px 8px rgba(34,31,28,0.18));
+  }
+  .roaming-cat.dragging{
+    transition: none !important;
+    cursor: grabbing;
+    z-index: 35 !important;
+    filter: drop-shadow(0 14px 20px rgba(34,31,28,0.3));
+    transform: scale(1.08);
+  }
+  .cat-flip-wrap{
+    width: 100%;
+    height: 100%;
+    transform-origin: 32px 25px;
+    transition: transform .25s ease;
+  }
+  .roaming-cat.facing-left .cat-flip-wrap{
+    transform: scaleX(-1);
+  }
+  .free-cat-svg{
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .cat-tail{
+    transform-origin: 14px 32px;
+    animation: tailWag 3.2s ease-in-out infinite alternate;
+  }
+  .roaming-cat.walking .cat-tail{
+    animation: tailWalk 0.26s ease-in-out infinite alternate;
+  }
+  .roaming-cat.walking .cat-flip-wrap{
+    animation: catWaddle 0.26s ease-in-out infinite alternate;
+  }
+  .roaming-cat.walking .front-paw-l{
+    animation: pawWalkA 0.26s ease-in-out infinite alternate;
+  }
+  .roaming-cat.walking .front-paw-r{
+    animation: pawWalkB 0.26s ease-in-out infinite alternate;
+  }
+  .roaming-cat.walking .back-paw-l{
+    animation: pawWalkB 0.26s ease-in-out infinite alternate;
+  }
+  .roaming-cat.walking .back-paw-r{
+    animation: pawWalkA 0.26s ease-in-out infinite alternate;
+  }
+  .roaming-cat.sleeping .cat-torso{
+    animation: catBreathe 4s ease-in-out infinite;
+    transform-origin: center bottom;
+  }
+  .cat-bubble{
+    position: absolute;
+    bottom: 104%;
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  }
+  .cat-bubble::after{
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: var(--ink);
+  }
+  .cat-bubble.show{
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  @keyframes tailWag { 0%{ transform: rotate(-8deg); } 100%{ transform: rotate(14deg); } }
+  @keyframes tailWalk { 0%{ transform: rotate(-16deg); } 100%{ transform: rotate(20deg); } }
+  @keyframes catWaddle { 0%{ transform: translateY(0); } 100%{ transform: translateY(-3.5px) rotate(1.8deg); } }
+  @keyframes pawWalkA { 0%{ transform: translateX(-3px) translateY(-2px); } 100%{ transform: translateX(3px) translateY(1.5px); } }
+  @keyframes pawWalkB { 0%{ transform: translateX(3px) translateY(1.5px); } 100%{ transform: translateX(-3px) translateY(-2px); } }
+
   /* compact gauge strip */
   .gauge-strip{ display:flex; align-items:center; gap:14px; padding:6px 22px 14px; }
   .ring{ width:64px; height:64px; border-radius:50%; position:relative; flex-shrink:0; }
@@ -166,11 +277,97 @@
 </head>
 <body>
 <div class="nav-strip" id="navstrip"></div>
-<div class="phone">
+<div class="phone" id="phoneContainer">
+
+  <!-- FREE-ROAMING PET CAT -->
+  <div class="roaming-cat" id="roamingCat" style="left: 275px; top: 125px;" title="Mochi · Drag me anywhere or tap!">
+    <div class="cat-bubble" id="catBubble">purr...</div>
+    <div class="cat-flip-wrap" id="catFlipWrap">
+      <svg class="free-cat-svg" viewBox="0 0 64 50">
+        <!-- Tail -->
+        <path class="cat-tail" d="M13 32 C7 27, 4 17, 8 12 C10 10, 13 12, 12 15 C11 19, 14 25, 17 30" fill="none" stroke="#2D2825" stroke-width="4.5" stroke-linecap="round"/>
+        <!-- Paws Back -->
+        <ellipse class="paw back-paw-l" cx="19" cy="42" rx="4" ry="3.5" fill="#3D3632"/>
+        <ellipse class="paw back-paw-r" cx="26" cy="42" rx="4" ry="3.5" fill="#2D2825"/>
+        <!-- Torso -->
+        <ellipse class="cat-torso" cx="32" cy="33" rx="17" ry="12.5" fill="#2D2825"/>
+        <!-- Paws Front -->
+        <ellipse class="paw front-paw-l" cx="40" cy="43" rx="4" ry="3.5" fill="#3D3632"/>
+        <ellipse class="paw front-paw-r" cx="48" cy="43" rx="4" ry="3.5" fill="#2D2825"/>
+        <!-- Head -->
+        <g class="cat-head-group">
+          <!-- Ears -->
+          <g class="free-ears">
+            <path d="M35 18 L30 5 L42 12 Z" fill="#2D2825"/>
+            <path d="M35 16 L32 8 L40 13 Z" fill="#E6A69B"/>
+            <path d="M50 12 L61 5 L56 18 Z" fill="#2D2825"/>
+            <path d="M51 13 L58 8 L56 16 Z" fill="#E6A69B"/>
+          </g>
+          <!-- Head Base -->
+          <circle cx="45" cy="22" r="14" fill="#2D2825"/>
+          <!-- Cheeks -->
+          <ellipse cx="41" cy="27" rx="5" ry="3.5" fill="#38322E"/>
+          <ellipse cx="49" cy="27" rx="5" ry="3.5" fill="#38322E"/>
+          <!-- Nose -->
+          <polygon points="44,24 46,24 45,26" fill="#E6A69B"/>
+          <!-- Whiskers -->
+          <path d="M31 24 L40 24 M30 28 L40 26" stroke="#7A726B" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M50 24 L59 24 M50 26 L60 28" stroke="#7A726B" stroke-width="1.2" stroke-linecap="round"/>
+          <!-- Eyes: Awake -->
+          <g class="free-eyes-awake" id="freeEyesAwake" style="display:none;">
+            <ellipse cx="38" cy="19" rx="3" ry="4" fill="#E8B86D"/>
+            <ellipse cx="38" cy="19" rx="1.2" ry="3.5" fill="#151210"/>
+            <circle cx="37" cy="17.5" r="1" fill="#FFFFFF"/>
+            <ellipse cx="50" cy="19" rx="3" ry="4" fill="#E8B86D"/>
+            <ellipse cx="50" cy="19" rx="1.2" ry="3.5" fill="#151210"/>
+            <circle cx="49" cy="17.5" r="1" fill="#FFFFFF"/>
+          </g>
+          <!-- Eyes: Loaf -->
+          <g class="free-eyes-loaf" id="freeEyesLoaf">
+            <path d="M35 19 Q39 15 43 19" stroke="#E8B86D" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <path d="M47 19 Q51 15 55 19" stroke="#E8B86D" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          </g>
+          <!-- Eyes: Sleep -->
+          <g class="free-eyes-sleep" id="freeEyesSleep" style="display:none;">
+            <path d="M35 20 Q39 23 43 20" stroke="#8E867E" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            <path d="M47 20 Q51 23 55 20" stroke="#8E867E" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+  </div>
 
   <!-- CALENDAR / HOME -->
   <div class="screen active" id="screen-home">
-    <div class="topbar"><p class="eyebrow">This week</p><h1>Hey Alex</h1></div>
+    <div class="topbar">
+      <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div>
+          <p class="eyebrow">This week</p>
+          <h1>Hey Alex</h1>
+        </div>
+        <div class="pet-card" id="petCard" onclick="togglePetRoam()" title="Tap to call Mochi or toggle roaming">
+          <div class="pet-avatar">
+            <svg class="pet-cat-svg" viewBox="0 0 100 100">
+              <path d="M26 42 L17 17 L42 27 Z" fill="#322D29"/>
+              <path d="M27 38 L22 22 L38 29 Z" fill="#E6A69B"/>
+              <path d="M74 42 L83 17 L58 27 Z" fill="#322D29"/>
+              <path d="M73 38 L78 22 L62 29 Z" fill="#E6A69B"/>
+              <ellipse cx="50" cy="54" rx="33" ry="29" fill="#322D29"/>
+              <ellipse cx="44" cy="62" rx="9" ry="6" fill="#3F3934"/>
+              <ellipse cx="56" cy="62" rx="9" ry="6" fill="#3F3934"/>
+              <path d="M47 57 L53 57 L50 61 Z" fill="#E6A69B"/>
+              <path d="M33 50 Q38 46 43 51" stroke="#E8B86D" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+              <path d="M57 51 Q62 46 67 50" stroke="#E8B86D" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+            </svg>
+            <div class="pet-heart" id="petHeart">✨</div>
+          </div>
+          <div class="pet-meta">
+            <span class="pet-name">Mochi</span>
+            <span class="pet-mood-tag" id="petMoodTag">🐾 Roaming</span>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="gauge-strip">
       <div class="ring"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="27" fill="none" stroke="#E6E1D8" stroke-width="7"/><circle cx="32" cy="32" r="27" fill="none" stroke="var(--heavy)" stroke-width="7" stroke-linecap="round" stroke-dasharray="170" stroke-dashoffset="34"/></svg><div class="ring-label">81%</div></div>
       <div class="txt">Running <b>heavy</b> today — coursework plus a rough couple nights of sleep.</div>
@@ -335,6 +532,246 @@
   placeBlock('Stats lecture','Fixed · 4:00–5:00p', 16, 1, 'fixed');
   placeBlock('Grocery run','Errand · 6:30–7:00p', 18.5, 0.5, 'errand');
 
+  // ---- Free-Roaming Pet Cat Companion Logic ----
+  const petDialogue = {
+    awake: [
+      "Mochi purrs warmly: You've got good momentum today!",
+      "Mochi tilts his head: Feeling light and balanced.",
+      "Mochi stretches out: *mrrow* Ready when you are!"
+    ],
+    loaf: [
+      "Mochi curled up: 'Today is heavy, Alex. Pacing is key.'",
+      "Mochi loafs quietly: *purrrr* 'Don't forget to take breaks.'",
+      "Mochi leans against your hand: 'One milestone at a time.'"
+    ],
+    sleep: [
+      "Mochi is fast asleep: 'Zzz... even cats need shuteye.'",
+      "Mochi curls tight: 'Wednesday is overloaded. Protect your rest.'",
+      "Mochi snoozes peacefully: Rest is productive too."
+    ]
+  };
+
+  let petState = 'loaf';
+  let isRoamingEnabled = true;
+  let roamTimer = null;
+  let isDraggingCat = false;
+  let dragStartMouse = { x: 0, y: 0 };
+  let dragStartPos = { x: 0, y: 0 };
+  let hasMovedDuringDrag = false;
+
+  const roamingCat = document.getElementById('roamingCat');
+  const catBubble = document.getElementById('catBubble');
+  const phoneContainer = document.getElementById('phoneContainer');
+
+  function showCatBubble(text, duration = 2400) {
+    if (!catBubble) return;
+    catBubble.textContent = text;
+    catBubble.classList.add('show');
+    clearTimeout(catBubble._timer);
+    catBubble._timer = setTimeout(() => {
+      catBubble.classList.remove('show');
+    }, duration);
+  }
+
+  function updatePetMood(load) {
+    const freeAwake = document.getElementById('freeEyesAwake');
+    const freeLoaf = document.getElementById('freeEyesLoaf');
+    const freeSleep = document.getElementById('freeEyesSleep');
+    const tag = document.getElementById('petMoodTag');
+    if (!roamingCat) return;
+
+    roamingCat.classList.remove('sleeping');
+
+    if (load > 85) {
+      petState = 'sleep';
+      if (freeAwake) freeAwake.style.display = 'none';
+      if (freeLoaf) freeLoaf.style.display = 'none';
+      if (freeSleep) freeSleep.style.display = 'block';
+      roamingCat.classList.add('sleeping');
+      if (tag) tag.textContent = isRoamingEnabled ? '🐾 Sleeping · ' + load + '%' : '💤 Sleeping';
+      showCatBubble('Zzz... (' + load + '%)');
+    } else if (load > 60) {
+      petState = 'loaf';
+      if (freeAwake) freeAwake.style.display = 'none';
+      if (freeLoaf) freeLoaf.style.display = 'block';
+      if (freeSleep) freeSleep.style.display = 'none';
+      if (tag) tag.textContent = isRoamingEnabled ? '🐾 Roaming · ' + load + '%' : '☕ Resting';
+    } else {
+      petState = 'awake';
+      if (freeAwake) freeAwake.style.display = 'block';
+      if (freeLoaf) freeLoaf.style.display = 'none';
+      if (freeSleep) freeSleep.style.display = 'none';
+      if (tag) tag.textContent = isRoamingEnabled ? '🐾 Exploring · ' + load + '%' : '✨ Calm';
+    }
+  }
+
+  function petCat() {
+    const heart = document.getElementById('petHeart');
+    if (heart) {
+      heart.textContent = petState === 'sleep' ? '💤' : '✨';
+      heart.classList.remove('pop');
+      void heart.offsetWidth;
+      heart.classList.add('pop');
+      setTimeout(() => heart.classList.remove('pop'), 550);
+    }
+    const pool = petDialogue[petState];
+    const quote = pool[Math.floor(Math.random() * pool.length)];
+    showCatBubble(petState === 'sleep' ? 'Zzz... purr' : '*purrrrr* ✨');
+    toast(quote);
+  }
+
+  function togglePetRoam() {
+    isRoamingEnabled = !isRoamingEnabled;
+    const tag = document.getElementById('petMoodTag');
+    if (isRoamingEnabled) {
+      if (tag) tag.textContent = '🐾 Roaming';
+      showCatBubble('Roaming!');
+      toast('Mochi is exploring the screen freely');
+      scheduleNextMove(1000);
+    } else {
+      if (tag) tag.textContent = '💤 Resting';
+      showCatBubble('Resting here');
+      toast('Mochi stayed in place');
+      if (roamTimer) clearTimeout(roamTimer);
+    }
+  }
+
+  // Autonomous wandering
+  function performAutonomousStep() {
+    if (!isRoamingEnabled || isDraggingCat || !roamingCat) return;
+
+    // Check if an overlay is showing
+    const addOpen = document.getElementById('addOverlay').classList.contains('show');
+    const ovOpen = document.getElementById('overloadOverlay').classList.contains('show');
+    if (addOpen || ovOpen) return;
+
+    const curX = parseFloat(roamingCat.style.left) || 275;
+    const curY = parseFloat(roamingCat.style.top) || 125;
+
+    // If asleep on high load day, mostly snooze
+    if (petState === 'sleep' && Math.random() < 0.75) {
+      showCatBubble('Zzz...', 1800);
+      return;
+    }
+
+    // Pick target inside phone boundaries: x: [20, 295], y: [95, 650]
+    const targetX = Math.round(20 + Math.random() * 275);
+    const targetY = Math.round(95 + Math.random() * 555);
+
+    const dx = targetX - curX;
+    const dy = targetY - curY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < 20) return;
+
+    const speed = 75; // px/sec
+    const duration = Math.min(Math.max(dist / speed, 1.2), 3.2);
+
+    if (dx < -5) {
+      roamingCat.classList.add('facing-left');
+    } else if (dx > 5) {
+      roamingCat.classList.remove('facing-left');
+    }
+
+    roamingCat.style.transition = `left ${duration}s cubic-bezier(0.25, 1, 0.5, 1), top ${duration}s cubic-bezier(0.25, 1, 0.5, 1)`;
+    roamingCat.classList.add('walking');
+    roamingCat.style.left = targetX + 'px';
+    roamingCat.style.top = targetY + 'px';
+
+    setTimeout(() => {
+      if (!isDraggingCat) {
+        roamingCat.classList.remove('walking');
+        if (Math.random() < 0.35) {
+          const whispers = petState === 'sleep' ? ['Zzz', 'snore...'] : ['*purr*', 'mrrow', '✨', 'sniff sniff'];
+          showCatBubble(whispers[Math.floor(Math.random() * whispers.length)], 1600);
+        }
+      }
+    }, duration * 1000);
+  }
+
+  function scheduleNextMove(customDelay) {
+    if (roamTimer) clearTimeout(roamTimer);
+    const delay = customDelay || (Math.floor(Math.random() * 4000) + 4000);
+    roamTimer = setTimeout(() => {
+      performAutonomousStep();
+      scheduleNextMove();
+    }, delay);
+  }
+
+  // Drag & drop handlers
+  function initCatDrag() {
+    if (!roamingCat || !phoneContainer) return;
+
+    const onPointerDown = (e) => {
+      isDraggingCat = true;
+      hasMovedDuringDrag = false;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      dragStartMouse = { x: clientX, y: clientY };
+
+      const curLeft = parseFloat(roamingCat.style.left) || 275;
+      const curTop = parseFloat(roamingCat.style.top) || 125;
+      dragStartPos = { x: curLeft, y: curTop };
+
+      roamingCat.classList.add('dragging');
+      roamingCat.classList.remove('walking');
+      showCatBubble('eep! 🐾', 1200);
+      if (e.cancelable && e.type && e.type.startsWith('touch')) e.preventDefault();
+    };
+
+    const onPointerMove = (e) => {
+      if (!isDraggingCat) return;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const dx = clientX - dragStartMouse.x;
+      const dy = clientY - dragStartMouse.y;
+
+      if (Math.hypot(dx, dy) > 5) {
+        hasMovedDuringDrag = true;
+      }
+
+      let newX = dragStartPos.x + dx;
+      let newY = dragStartPos.y + dy;
+
+      // Phone bounds: width 380, height 800
+      newX = Math.max(10, Math.min(310, newX));
+      newY = Math.max(70, Math.min(670, newY));
+
+      if (dx < -3) roamingCat.classList.add('facing-left');
+      else if (dx > 3) roamingCat.classList.remove('facing-left');
+
+      roamingCat.style.left = newX + 'px';
+      roamingCat.style.top = newY + 'px';
+
+      if (e.cancelable && e.type && e.type.startsWith('touch')) e.preventDefault();
+    };
+
+    const onPointerUp = (e) => {
+      if (!isDraggingCat) return;
+      isDraggingCat = false;
+      roamingCat.classList.remove('dragging');
+
+      if (!hasMovedDuringDrag) {
+        // Was a simple tap!
+        petCat();
+      } else {
+        showCatBubble('landed! *purr*', 1800);
+      }
+      scheduleNextMove(5000);
+    };
+
+    roamingCat.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('mousemove', onPointerMove);
+    window.addEventListener('mouseup', onPointerUp);
+
+    roamingCat.addEventListener('touchstart', onPointerDown, { passive: false });
+    window.addEventListener('touchmove', onPointerMove, { passive: false });
+    window.addEventListener('touchend', onPointerUp);
+  }
+
+  initCatDrag();
+  scheduleNextMove(2500);
+
   const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const dayLoads = [40,65,72,81,55,30,20];
   const weekTabs = document.getElementById('weekTabs');
@@ -344,7 +781,12 @@
     const load = dayLoads[i];
     const color = load>85?'var(--over)':load>60?'var(--heavy)':'var(--capacity)';
     el.innerHTML = `<div class="d">${d}</div><div class="n">${i+8}</div><div class="bar" style="background:${color};opacity:${0.3+load/150}"></div>`;
-    el.onclick = ()=>{ [...weekTabs.children].forEach(c=>c.classList.remove('sel')); el.classList.add('sel'); toast(d+' selected — tasks would filter to this day'); };
+    el.onclick = ()=>{
+      [...weekTabs.children].forEach(c=>c.classList.remove('sel'));
+      el.classList.add('sel');
+      updatePetMood(load);
+      toast(d+' ('+load+'% load) — Mochi adapts');
+    };
     weekTabs.appendChild(el);
   });
 
@@ -405,7 +847,10 @@
   }
 
   function pickMini(btn, id){ [...document.getElementById(id).children].forEach(b=>b.classList.remove('sel')); btn.classList.add('sel'); }
-  function doneCheckin(){ document.getElementById('checkinPanel').classList.remove('show'); toast('Logged — thanks'); }
+  function doneCheckin(){
+    document.getElementById('checkinPanel').classList.remove('show');
+    petCat();
+  }
 
   const recSets = {
     mental: {title:'Mentally drained', items:[{t:'20-min walk, no headphones', s:'Open at 5:30p'},{t:'Push "Reading response" to tomorrow', s:'Frees tonight'}]},
