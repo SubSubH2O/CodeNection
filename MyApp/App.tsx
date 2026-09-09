@@ -3,11 +3,9 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   StyleSheet,
-  Platform,
-  StatusBar as RNStatusBar,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { TimetableScreen } from './src/screens/TimetableScreen';
@@ -27,9 +25,10 @@ export default function App() {
   const vitalityPercent = 100 - Math.round(metrics.overall * 0.4);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
-      <View style={styles.appContainer}>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        <StatusBar style="dark" />
+        <View style={styles.appContainer}>
         {/* Stitch Header Bar */}
         <View style={styles.appHeader}>
           <View style={styles.headerBrandCol}>
@@ -130,6 +129,7 @@ export default function App() {
         />
       </View>
     </SafeAreaView>
+  </SafeAreaProvider>
   );
 }
 
@@ -137,7 +137,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: BotanicalTokens.colors.background,
-    paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 0,
   },
   appContainer: {
     flex: 1,
