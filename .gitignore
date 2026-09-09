@@ -3,3 +3,17 @@ AGENTS.md
 PROBLEM_STATEMENT.md
 prototype
 PROTOTYPE_JUDING_RUBRICS.md
+.claude
+
+
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# OS
+.DS_Store
+*.log
