@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { TreeAvatarState } from '../../types/avatar';
 import { BotanicalTokens } from '../../theme/tokens';
 
@@ -77,83 +77,13 @@ export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState, onPruneSocial
         )}
       </View>
 
-      {/* Main Tree Structure */}
+      {/* Illustrated Tree Graphic */}
       <View style={styles.treeContainer}>
-        {/* Top Canopy (Time) */}
-        <View
-          style={[
-            styles.canopyCrown,
-            { backgroundColor: timeCol.main },
-            time.isDrooping && styles.canopyDrooping,
-          ]}
-        >
-          <View style={[styles.canopyInnerHighlight, { backgroundColor: timeCol.highlight }]} />
-        </View>
-
-        {/* Middle Branch Clumps */}
-        <View style={styles.midCanopyRow}>
-          {/* Upper Left Canopy (Mental) */}
-          <View
-            style={[
-              styles.canopyMental,
-              { backgroundColor: mentalCol.main },
-              mental.isDrooping && styles.canopyDrooping,
-            ]}
-          >
-            <View style={[styles.canopyInnerHighlight, { backgroundColor: mentalCol.highlight }]} />
-          </View>
-
-          {/* Upper Right Canopy (Social) */}
-          <View
-            style={[
-              styles.canopySocial,
-              { backgroundColor: socialCol.main },
-              social.isDrooping && styles.canopyDrooping,
-            ]}
-          >
-            <View style={[styles.canopyInnerHighlight, { backgroundColor: socialCol.highlight }]} />
-          </View>
-        </View>
-
-        {/* Lower Branch Clumps */}
-        <View style={styles.lowerCanopyRow}>
-          {/* Lower Left Canopy (Physical) */}
-          <View
-            style={[
-              styles.canopyPhysical,
-              { backgroundColor: physicalCol.main },
-              physical.isDrooping && styles.canopyDrooping,
-            ]}
-          >
-            <View style={[styles.canopyInnerHighlight, { backgroundColor: physicalCol.highlight }]} />
-          </View>
-
-          {/* Central Trunk */}
-          <View style={styles.trunk}>
-            {/* Diagonal Branch Bars */}
-            <View style={[styles.diagonalBranch, styles.branchUpperLeft]} />
-            <View style={[styles.diagonalBranch, styles.branchUpperRight]} />
-            <View style={[styles.diagonalBranch, styles.branchLowerLeft]} />
-            <View style={[styles.diagonalBranch, styles.branchLowerRight]} />
-          </View>
-
-          {/* Lower Right Canopy (Errands) */}
-          <View
-            style={[
-              styles.canopyErrands,
-              { backgroundColor: errandsCol.main },
-              errands.isDrooping && styles.canopyDrooping,
-            ]}
-          >
-            <View style={[styles.canopyInnerHighlight, { backgroundColor: errandsCol.highlight }]} />
-          </View>
-        </View>
-
-        {/* Base Mound & Soil Ground Line */}
-        <View style={styles.groundContainer}>
-          <View style={styles.grassMound} />
-          <View style={styles.soilEarth} />
-        </View>
+        <Image
+          source={require('../../../assets/tree_illustration.png')}
+          style={styles.treeImage}
+          resizeMode="contain"
+        />
       </View>
 
       {/* Badge Lower Left: Physical */}
@@ -303,121 +233,12 @@ const styles = StyleSheet.create({
   },
   treeContainer: {
     alignItems: 'center',
-    width: '100%',
-  },
-  canopyCrown: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 4,
-    marginBottom: -25,
-  },
-  canopyInnerHighlight: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-  },
-  midCanopyRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: 220,
-    zIndex: 3,
-    marginBottom: -15,
-  },
-  canopyMental: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  canopySocial: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lowerCanopyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    zIndex: 2,
+    height: 250,
   },
-  canopyPhysical: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: -10,
-  },
-  canopyErrands: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -10,
-  },
-  canopyDrooping: {
-    transform: [{ translateY: 8 }],
-  },
-  trunk: {
-    width: 26,
-    height: 140,
-    backgroundColor: BotanicalTokens.colors.treeTrunk,
-    borderRadius: 13,
-    zIndex: 1,
-    position: 'relative',
-  },
-  diagonalBranch: {
-    position: 'absolute',
-    width: 38,
-    height: 10,
-    backgroundColor: BotanicalTokens.colors.treeTrunk,
-    borderRadius: 5,
-  },
-  branchUpperLeft: {
-    top: 30,
-    left: -28,
-    transform: [{ rotate: '-35deg' }],
-  },
-  branchUpperRight: {
-    top: 30,
-    right: -28,
-    transform: [{ rotate: '35deg' }],
-  },
-  branchLowerLeft: {
-    top: 75,
-    left: -32,
-    transform: [{ rotate: '-25deg' }],
-  },
-  branchLowerRight: {
-    top: 75,
-    right: -32,
-    transform: [{ rotate: '25deg' }],
-  },
-  groundContainer: {
-    width: '100%',
-    alignItems: 'center',
-    marginTop: -8,
-  },
-  grassMound: {
-    width: '90%',
-    height: 8,
-    backgroundColor: BotanicalTokens.colors.grassMound,
-    borderRadius: 4,
-  },
-  soilEarth: {
-    width: '96%',
-    height: 18,
-    backgroundColor: BotanicalTokens.colors.soilEarth,
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-    marginTop: 2,
+  treeImage: {
+    width: 280,
+    height: 230,
   },
 });
