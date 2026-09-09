@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, SafeAreaView, StyleSheet, Platform, StatusBar as RNStatusBar } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  SafeAreaView,
+  StyleSheet,
+  Platform,
+  StatusBar as RNStatusBar,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { TimetableScreen } from './src/screens/TimetableScreen';
 import { OffloaderScreen } from './src/screens/OffloaderScreen';
 import { CoopScreen } from './src/screens/CoopScreen';
 import { SoundingBoardModal } from './src/components/soundingBoard/SoundingBoardModal';
+import { useLoadMetrics } from './src/store/useLoadStore';
+import { BotanicalTokens } from './src/theme/tokens';
 
 type Tab = 'today' | 'timetable' | 'offloader' | 'coop';
 
@@ -13,25 +23,54 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('today');
   const [soundingBoardOpen, setSoundingBoardOpen] = useState(false);
 
+  const metrics = useLoadMetrics();
+  const vitalityPercent = 100 - Math.round(metrics.overall * 0.4);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={styles.appContainer}>
-        {/* App Title Header */}
-        <View style={styles.appBar}>
-          <View>
-            <Text style={styles.appBrand}>EQUILIBRIUM</Text>
-            <Text style={styles.appTagline}>Burnout Prevention & Task Decoupling</Text>
+        {/* Stitch Header Bar */}
+        <View style={styles.appHeader}>
+          <View style={styles.headerBrandCol}>
+            <View style={styles.brandIconWrap}>
+              <Text style={styles.brandEmoji}>🌱</Text>
+            </View>
+            <View>
+              <Text style={styles.brandTitle}>Sprout Equilibrium</Text>
+              <View style={styles.brandSubRow}>
+                <View style={styles.activePulseDot} />
+                <Text style={styles.brandSub}>
+                  {activeTab === 'today'
+                    ? 'Garden Tree'
+                    : activeTab === 'timetable'
+                    ? 'Timetable'
+                    : activeTab === 'offloader'
+                    ? 'Scanner'
+                    : 'Co-op Grove'}
+                </Text>
+              </View>
+            </View>
           </View>
-          <TouchableOpacity
-            style={styles.soundingBoardPill}
-            onPress={() => setSoundingBoardOpen(true)}
-          >
-            <Text style={styles.soundingBoardPillText}>Sounding Board</Text>
-          </TouchableOpacity>
+
+          <View style={styles.headerRightActions}>
+            {/* Water Drop Vitality Pill */}
+            <View style={styles.vitalityDropPill}>
+              <Text style={styles.waterDropIcon}>💧</Text>
+              <Text style={styles.vitalityNumber}>{vitalityPercent}%</Text>
+            </View>
+
+            {/* Sounding Board Pill Button */}
+            <TouchableOpacity
+              style={styles.soundingBoardBtn}
+              onPress={() => setSoundingBoardOpen(true)}
+            >
+              <Text style={styles.soundingBoardText}>🧘 Tea Room</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Screen View Container */}
+        {/* Screen Container */}
         <View style={styles.screenContainer}>
           {activeTab === 'today' && (
             <TodayScreen onOpenSoundingBoard={() => setSoundingBoardOpen(true)} />
@@ -41,58 +80,50 @@ export default function App() {
           {activeTab === 'coop' && <CoopScreen />}
         </View>
 
-        {/* Bottom Tab Bar */}
-        <View style={styles.tabBar}>
+        {/* Stitch Rounded Bottom Navigation Bar */}
+        <View style={styles.bottomNav}>
           <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'today' && styles.tabItemActive]}
+            style={[styles.navItem, activeTab === 'today' && styles.navItemActive]}
             onPress={() => setActiveTab('today')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'today' && styles.tabLabelActive]}>
-              Today
-            </Text>
-            <Text style={[styles.tabSub, activeTab === 'today' && styles.tabSubActive]}>
-              Mirror
+            <Text style={styles.navIcon}>🪴</Text>
+            <Text style={[styles.navLabel, activeTab === 'today' && styles.navLabelActive]}>
+              Garden Tree
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'timetable' && styles.tabItemActive]}
+            style={[styles.navItem, activeTab === 'timetable' && styles.navItemActive]}
             onPress={() => setActiveTab('timetable')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'timetable' && styles.tabLabelActive]}>
+            <Text style={styles.navIcon}>📅</Text>
+            <Text style={[styles.navLabel, activeTab === 'timetable' && styles.navLabelActive]}>
               Timetable
             </Text>
-            <Text style={[styles.tabSub, activeTab === 'timetable' && styles.tabSubActive]}>
-              Schedule
-            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'offloader' && styles.tabItemActive]}
+            style={[styles.navItem, activeTab === 'offloader' && styles.navItemActive]}
             onPress={() => setActiveTab('offloader')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'offloader' && styles.tabLabelActive]}>
+            <Text style={styles.navIcon}>🧠</Text>
+            <Text style={[styles.navLabel, activeTab === 'offloader' && styles.navLabelActive]}>
               Offloader
-            </Text>
-            <Text style={[styles.tabSub, activeTab === 'offloader' && styles.tabSubActive]}>
-              Scanner
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.tabItem, activeTab === 'coop' && styles.tabItemActive]}
+            style={[styles.navItem, activeTab === 'coop' && styles.navItemActive]}
             onPress={() => setActiveTab('coop')}
           >
-            <Text style={[styles.tabLabel, activeTab === 'coop' && styles.tabLabelActive]}>
-              Co-op
-            </Text>
-            <Text style={[styles.tabSub, activeTab === 'coop' && styles.tabSubActive]}>
-              Circle
+            <Text style={styles.navIcon}>🌸</Text>
+            <Text style={[styles.navLabel, activeTab === 'coop' && styles.navLabelActive]}>
+              Co-op Grove
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* De-escalation & Emotional Triage Sounding Board */}
+        {/* Sounding Board Modal */}
         <SoundingBoardModal
           visible={soundingBoardOpen}
           onClose={() => setSoundingBoardOpen(false)}
@@ -105,82 +136,137 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FAF8F4',
+    backgroundColor: BotanicalTokens.colors.background,
     paddingTop: Platform.OS === 'android' ? RNStatusBar.currentHeight || 24 : 0,
   },
   appContainer: {
     flex: 1,
-    backgroundColor: '#FAF8F4',
+    backgroundColor: BotanicalTokens.colors.backgroundCanvas,
   },
-  appBar: {
+  appHeader: {
+    height: 56,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
     borderBottomWidth: 1,
-    borderBottomColor: '#E6E1D8',
-    backgroundColor: '#FAF8F4',
+    borderBottomColor: 'rgba(235, 220, 203, 0.7)',
+    ...BotanicalTokens.shadows.soft,
   },
-  appBrand: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    color: '#221F1C',
+  headerBrandCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  appTagline: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#8A8275',
-  },
-  soundingBoardPill: {
-    backgroundColor: '#F2EEF8',
-    borderWidth: 1,
-    borderColor: '#D3C6E8',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
+  brandIconWrap: {
+    width: 32,
+    height: 32,
     borderRadius: 16,
+    backgroundColor: 'rgba(9, 100, 68, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  soundingBoardPillText: {
+  brandEmoji: {
+    fontSize: 16,
+  },
+  brandTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  brandSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  activePulseDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: BotanicalTokens.colors.primary,
+  },
+  brandSub: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.primary,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vitalityDropPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BotanicalTokens.radii.full,
+    gap: 3,
+  },
+  waterDropIcon: {
+    fontSize: 12,
+  },
+  vitalityNumber: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
+  },
+  soundingBoardBtn: {
+    backgroundColor: 'rgba(9, 100, 68, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(9, 100, 68, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BotanicalTokens.radii.full,
+  },
+  soundingBoardText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#6B5FA8',
+    color: BotanicalTokens.colors.primary,
   },
   screenContainer: {
     flex: 1,
   },
-  tabBar: {
+  bottomNav: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E6E1D8',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  tabItem: {
-    flex: 1,
+    justifyContent: 'space-around',
     alignItems: 'center',
-    paddingVertical: 4,
-    borderRadius: 8,
+    height: 64,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(235, 220, 203, 0.8)',
+    paddingHorizontal: 10,
+    ...BotanicalTokens.shadows.card,
   },
-  tabItemActive: {
-    backgroundColor: '#F5F2EB',
+  navItem: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: BotanicalTokens.radii.full,
+    gap: 2,
   },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8A8275',
+  navItemActive: {
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: 'rgba(235, 220, 203, 0.6)',
+    ...BotanicalTokens.shadows.soft,
   },
-  tabLabelActive: {
-    color: '#221F1C',
+  navIcon: {
+    fontSize: 16,
   },
-  tabSub: {
-    fontSize: 9,
+  navLabel: {
+    fontSize: 10,
     fontWeight: '600',
-    color: '#A8A297',
-    marginTop: 1,
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
-  tabSubActive: {
-    color: '#6B6459',
+  navLabelActive: {
+    color: BotanicalTokens.colors.primary,
+    fontWeight: '800',
   },
 });

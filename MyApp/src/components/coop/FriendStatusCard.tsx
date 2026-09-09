@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { CoopMember, TokenInteractionType } from '../../types/coop';
+import { BotanicalTokens } from '../../theme/tokens';
 
 interface FriendStatusCardProps {
   member: CoopMember;
@@ -11,104 +12,84 @@ export const FriendStatusCard: React.FC<FriendStatusCardProps> = ({
   member,
   onSendToken,
 }) => {
-  const getStatusColor = () => {
-    switch (member.overallStatus) {
-      case 'red':
-        return '#C44D56';
-      case 'yellow':
-        return '#C98A3B';
-      default:
-        return '#4C7A67';
-    }
-  };
+  const isOverloaded = member.overallStatus === 'red';
+  const isYellow = member.overallStatus === 'yellow';
 
-  const formatTokenName = (tok: TokenInteractionType) => {
-    switch (tok) {
-      case 'virtual_coffee':
-        return 'Coffee';
-      case 'no_reply_pass':
-        return 'No-Reply Pass';
-      default:
-        return 'Nod';
-    }
-  };
+  const potColor = isOverloaded ? '#b96a59' : '#c97b6a';
+  const sproutColor = isOverloaded ? '#6f7a72' : '#2e7d5b';
 
   return (
     <View style={styles.card}>
-      <View style={styles.topRow}>
-        <View style={styles.memberMeta}>
-          <Text style={styles.memberName}>{member.name}</Text>
-          <Text style={styles.avatarTypeTag}>
-            Avatar: {member.avatarType === 'tree' ? '5-Branch Tree' : 'Room Cat'}
-          </Text>
-        </View>
-
-        <View style={[styles.statusBadge, { borderColor: getStatusColor() }]}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
-          <Text style={[styles.statusText, { color: getStatusColor() }]}>
-            {member.overallStatus.toUpperCase()}
-          </Text>
-        </View>
+      {/* Quote bubble at top */}
+      <View style={styles.quoteBubble}>
+        <Text style={styles.quoteText} numberOfLines={1}>
+          💬 "{member.primaryLoadFactor}"
+        </Text>
       </View>
 
-      {/* Primary Fatigue Context */}
-      <View style={styles.factorBox}>
-        <Text style={styles.factorLabel}>PRIMARY LOAD FACTOR</Text>
-        <Text style={styles.factorText}>{member.primaryLoadFactor}</Text>
-      </View>
-
-      {/* Mini 5D bars */}
-      <View style={styles.miniBars}>
-        <View style={styles.miniBarCol}>
-          <Text style={styles.miniBarKey}>T</Text>
-          <Text style={styles.miniBarVal}>{member.load.time}%</Text>
-        </View>
-        <View style={styles.miniBarCol}>
-          <Text style={styles.miniBarKey}>M</Text>
-          <Text style={styles.miniBarVal}>{member.load.mental}%</Text>
-        </View>
-        <View style={styles.miniBarCol}>
-          <Text style={styles.miniBarKey}>P</Text>
-          <Text style={styles.miniBarVal}>{member.load.physical}%</Text>
-        </View>
-        <View style={styles.miniBarCol}>
-          <Text style={styles.miniBarKey}>S</Text>
-          <Text style={styles.miniBarVal}>{member.load.social}%</Text>
-        </View>
-        <View style={styles.miniBarCol}>
-          <Text style={styles.miniBarKey}>E</Text>
-          <Text style={styles.miniBarVal}>{member.load.errands}%</Text>
-        </View>
-      </View>
-
-      {/* Received Tokens History */}
-      {member.recentTokensReceived.length > 0 && (
-        <View style={styles.tokenHistory}>
-          <Text style={styles.tokenHistoryLabel}>RECENT SUPPORT TOKENS:</Text>
-          <View style={styles.tokenChips}>
-            {member.recentTokensReceived.map((tok, idx) => (
-              <View key={idx} style={styles.tokenChip}>
-                <Text style={styles.tokenChipText}>{formatTokenName(tok)}</Text>
-              </View>
-            ))}
+      {/* Center Plant Illustration & Percentage Badge */}
+      <View style={styles.avatarSection}>
+        <View style={styles.plantVisual}>
+          {/* Sprout Plant Stem & Foliage */}
+          <View
+            style={[
+              styles.foliageClump,
+              {
+                backgroundColor: sproutColor,
+                transform: isOverloaded ? [{ translateY: 6 }, { rotate: '-12deg' }] : [{ translateY: 0 }],
+              },
+            ]}
+          >
+            <Text style={styles.plantFaceEmoji}>{isOverloaded ? '🥀' : isYellow ? '🌿' : '🌸'}</Text>
+          </View>
+          {/* Terracotta Pot */}
+          <View style={[styles.terracottaPot, { backgroundColor: potColor }]}>
+            <View style={styles.potRim} />
           </View>
         </View>
-      )}
 
-      {/* Low-cost Interaction Buttons */}
-      <View style={styles.interactionRow}>
+        {/* Overload Percentage Badge */}
+        <View
+          style={[
+            styles.percentBadge,
+            isOverloaded && styles.percentBadgeRed,
+            isYellow && styles.percentBadgeYellow,
+          ]}
+        >
+          <Text
+            style={[
+              styles.percentText,
+              isOverloaded && styles.percentTextRed,
+              isYellow && styles.percentTextYellow,
+            ]}
+          >
+            {member.load.time}%
+          </Text>
+        </View>
+      </View>
+
+      {/* Member Info */}
+      <View style={styles.infoCol}>
+        <Text style={styles.memberName}>{member.name}</Text>
+        <Text style={styles.statusLabel}>
+          {isOverloaded ? 'Leaves Drooping · Rest Due' : isYellow ? 'Steady Hydration' : 'Lush & Blooming'}
+        </Text>
+      </View>
+
+      {/* 1-Tap Botanical Support Actions */}
+      <View style={styles.actionRow}>
         <TouchableOpacity
-          style={styles.actionBtn}
+          style={styles.waterBtn}
           onPress={() => onSendToken(member.id, 'virtual_coffee')}
         >
-          <Text style={styles.actionBtnText}>Send Virtual Coffee</Text>
+          <Text style={styles.waterBtnText}>💧 Water Sprout</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, styles.passBtn]}
+          style={styles.passBtn}
           onPress={() => onSendToken(member.id, 'no_reply_pass')}
         >
-          <Text style={[styles.actionBtnText, styles.passBtnText]}>Send No-Reply Pass</Text>
+          <Text style={styles.passBtnText}>💤 Rest Pass</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -117,134 +98,139 @@ export const FriendStatusCard: React.FC<FriendStatusCardProps> = ({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
+    flex: 1,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#E6E1D8',
-    gap: 10,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.lg,
+    padding: 10,
+    gap: 8,
+    ...BotanicalTokens.shadows.soft,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  memberMeta: {
-    gap: 2,
-  },
-  memberName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#221F1C',
-  },
-  avatarTypeTag: {
-    fontSize: 11,
-    color: '#6B6459',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
+  quoteBubble: {
+    backgroundColor: '#fcf5eb',
+    borderWidth: 1,
+    borderColor: '#eedecf',
     paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    backgroundColor: '#FAF8F4',
+    paddingHorizontal: 8,
+    borderRadius: BotanicalTokens.radii.full,
   },
-  statusDot: {
-    width: 6,
+  quoteText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#423528',
+  },
+  avatarSection: {
+    alignItems: 'center',
+    position: 'relative',
+    height: 70,
+    justifyContent: 'center',
+  },
+  plantVisual: {
+    alignItems: 'center',
+  },
+  foliageClump: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    marginBottom: -8,
+  },
+  plantFaceEmoji: {
+    fontSize: 14,
+  },
+  terracottaPot: {
+    width: 44,
+    height: 32,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  potRim: {
+    width: 48,
     height: 6,
+    backgroundColor: '#c97b6a',
     borderRadius: 3,
   },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.6,
+  percentBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#d0ffe3',
+    borderWidth: 1,
+    borderColor: '#88d6af',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BotanicalTokens.radii.full,
   },
-  factorBox: {
-    backgroundColor: '#FAF8F4',
-    borderRadius: 8,
-    padding: 10,
-    gap: 2,
+  percentBadgeYellow: {
+    backgroundColor: '#ffddb2',
+    borderColor: '#ffb94c',
   },
-  factorLabel: {
+  percentBadgeRed: {
+    backgroundColor: '#ffdad6',
+    borderColor: '#ffb4a4',
+  },
+  percentText: {
     fontSize: 9,
     fontWeight: '800',
-    letterSpacing: 0.8,
-    color: '#8A8275',
+    color: BotanicalTokens.colors.primary,
   },
-  factorText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#38332C',
+  percentTextYellow: {
+    color: BotanicalTokens.colors.tertiary,
   },
-  miniBars: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#F7F5EE',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  percentTextRed: {
+    color: BotanicalTokens.colors.error,
   },
-  miniBarCol: {
+  infoCol: {
     alignItems: 'center',
+    gap: 1,
   },
-  miniBarKey: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#8A8275',
-  },
-  miniBarVal: {
-    fontSize: 11,
+  memberName: {
+    fontSize: 13,
     fontWeight: '800',
-    color: '#221F1C',
+    color: BotanicalTokens.colors.onSurfaceDark,
   },
-  tokenHistory: {
+  statusLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+    textAlign: 'center',
+  },
+  actionRow: {
+    flexDirection: 'row',
     gap: 4,
+    marginTop: 2,
   },
-  tokenHistoryLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    color: '#8A8275',
-  },
-  tokenChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  tokenChip: {
-    backgroundColor: '#EAE6F5',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-  },
-  tokenChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#6B5FA8',
-  },
-  interactionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  actionBtn: {
+  waterBtn: {
     flex: 1,
-    backgroundColor: '#221F1C',
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: BotanicalTokens.colors.primary,
+    paddingVertical: 5,
+    borderRadius: BotanicalTokens.radii.full,
     alignItems: 'center',
   },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
+  waterBtnText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#ffffff',
   },
   passBtn: {
-    backgroundColor: '#4C7A67',
+    flex: 1,
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingVertical: 5,
+    borderRadius: BotanicalTokens.radii.full,
+    alignItems: 'center',
   },
   passBtnText: {
-    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceDark,
   },
 });

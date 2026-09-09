@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  StyleSheet,
+} from 'react-native';
 import { useLoadMetrics } from '../store/useLoadStore';
-import { useSelectedDate } from '../store/useTaskStore';
+import { useSelectedDate, taskActions, useTasks } from '../store/useTaskStore';
 import { AvatarContainer } from '../components/avatar/AvatarContainer';
-import { LoadBarGroup } from '../components/common/LoadBarGroup';
 import { QuickCheckInModal } from '../components/common/QuickCheckInModal';
+import { BotanicalTokens } from '../theme/tokens';
 
 interface TodayScreenProps {
   onOpenSoundingBoard: () => void;
@@ -12,90 +19,166 @@ interface TodayScreenProps {
 
 export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenSoundingBoard }) => {
   const [checkInVisible, setCheckInVisible] = useState(false);
+  const [mayaCardDismissed, setMayaCardDismissed] = useState(false);
+  const [mayaBalancedNotice, setMayaBalancedNotice] = useState(false);
+  const [mayaPromptText, setMayaPromptText] = useState('');
+
   const metrics = useLoadMetrics();
   const selectedDate = useSelectedDate();
+  const tasks = useTasks();
 
-  const getStatusColor = () => {
-    switch (metrics.status) {
-      case 'red':
-        return '#C44D56';
-      case 'yellow':
-        return '#C98A3B';
-      default:
-        return '#4C7A67';
+  const totalScheduledHours = (
+    tasks
+      .filter((t) => t.scheduledDate === selectedDate && !t.completed)
+      .reduce((sum, t) => sum + t.durationMinutes, 0) / 60
+  ).toFixed(1);
+
+  const handleLightenSchedule = () => {
+    // Find highest flexible task and postpone
+    const flexible = tasks.find(
+      (t) => t.scheduledDate === selectedDate && t.isFlexible && !t.completed
+    );
+    if (flexible) {
+      taskActions.postponeTask(flexible.id, '2026-09-11');
     }
+    setMayaBalancedNotice(true);
+    setTimeout(() => {
+      setMayaBalancedNotice(false);
+      setMayaCardDismissed(true);
+    }, 2400);
   };
 
-  const getStatusBg = () => {
-    switch (metrics.status) {
-      case 'red':
-        return '#FDF2F0';
-      case 'yellow':
-        return '#FFFDF5';
-      default:
-        return '#F2F8F5';
-    }
-  };
-
-  const getStatusDescription = () => {
-    if (metrics.status === 'red') {
-      return `Critical load threshold exceeded (${metrics.overall}%). Primary strain: ${metrics.primaryStressDimension.toUpperCase()}. Circuit Breaker active.`;
-    }
-    if (metrics.status === 'yellow') {
-      return `Operating near heavy capacity (${metrics.overall}%). Primary load driven by ${metrics.primaryStressDimension}. Regular recovery breaks suggested.`;
-    }
-    return `Operating within healthy equilibrium (${metrics.overall}%). Capacity well-distributed.`;
+  const handleSendMayaPrompt = () => {
+    if (!mayaPromptText.trim()) return;
+    onOpenSoundingBoard();
+    setMayaPromptText('');
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      {/* Top Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.eyebrow}>CURRENT STATUS</Text>
-          <Text style={styles.dateTitle}>{selectedDate}</Text>
+      {/* Top Status Cluster */}
+      <View style={styles.statusClusterRow}>
+        <View style={styles.clusterPill}>
+          <Text style={styles.clusterIcon}>✨</Text>
+          <Text style={styles.clusterText}>Cozy Equilibrium · Day 42</Text>
         </View>
-        <TouchableOpacity style={styles.checkInPill} onPress={() => setCheckInVisible(true)}>
-          <Text style={styles.checkInPillText}>Daily Calibration</Text>
+        <TouchableOpacity style={styles.clusterPill} onPress={() => setCheckInVisible(true)}>
+          <Text style={styles.clusterIcon}>☀️</Text>
+          <Text style={styles.clusterText}>Calibrate</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Overall Load Summary Card */}
-      <View style={[styles.summaryCard, { backgroundColor: getStatusBg(), borderColor: getStatusColor() }]}>
-        <View style={styles.summaryTopRow}>
-          <View>
-            <Text style={styles.summaryLabel}>COMBINED LIFE LOAD</Text>
-            <Text style={[styles.statusBadgeText, { color: getStatusColor() }]}>
-              {metrics.status.toUpperCase()} ZONE ({metrics.overall}%)
-            </Text>
+      {/* Vitality & Scheduled Pod Card */}
+      <View style={styles.vitalityCard}>
+        <View style={styles.vitalityTopRow}>
+          <View style={styles.vitalityTitleGroup}>
+            <View style={styles.vitalityPulseDot} />
+            <Text style={styles.vitalityTitle}>Garden Vitality</Text>
           </View>
-          <View style={[styles.ringBadge, { backgroundColor: getStatusColor() }]}>
-            <Text style={styles.ringBadgeText}>{metrics.overall}%</Text>
+          <View style={styles.vitalityValueGroup}>
+            <Text style={styles.vitalityPercent}>{100 - Math.round(metrics.overall * 0.4)}%</Text>
+            <View style={styles.bloomingBadge}>
+              <Text style={styles.bloomingBadgeText}>
+                {metrics.status === 'red' ? 'Wilting 🍂' : metrics.status === 'yellow' ? 'Thriving 🌱' : 'Blooming 🌸'}
+              </Text>
+            </View>
           </View>
         </View>
-        <Text style={styles.summaryDesc}>{getStatusDescription()}</Text>
+
+        {/* Tactile Progress Bar */}
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.max(15, 100 - Math.round(metrics.overall * 0.4))}%` },
+            ]}
+          />
+        </View>
+
+        <View style={styles.vitalityFooter}>
+          <View style={styles.vitalityFootItem}>
+            <Text style={styles.footIcon}>🌱</Text>
+            <Text style={styles.footText}>Roots hydrated & stable</Text>
+          </View>
+          <View style={styles.vitalityFootItem}>
+            <Text style={styles.footIcon}>⏱️</Text>
+            <Text style={styles.footTextHighlight}>{totalScheduledHours}h Scheduled</Text>
+          </View>
+        </View>
       </View>
 
-      {/* Warning Forecast Banner */}
-      {metrics.overall >= 75 && (
-        <View style={styles.forecastBanner}>
-          <View style={styles.forecastDot} />
-          <Text style={styles.forecastText}>
-            Forward projection: consecutive workload spikes may trigger saturation by midweek.
-          </Text>
+      {/* Interactive Tree Viewport Container */}
+      <AvatarContainer load={metrics.dimensions} overallStatus={metrics.status} />
+
+      {/* Maya AI Insight Recommendation Pod */}
+      {!mayaCardDismissed && (
+        <View style={styles.mayaCard}>
+          {mayaBalancedNotice ? (
+            <View style={styles.balancedRow}>
+              <View style={styles.balancedCheckCircle}>
+                <Text style={styles.checkIconText}>✓</Text>
+              </View>
+              <View>
+                <Text style={styles.balancedTitle}>Tree Balanced! 🌿</Text>
+                <Text style={styles.balancedSub}>Load trimmed. Leaves are resting happily.</Text>
+              </View>
+            </View>
+          ) : (
+            <>
+              <View style={styles.mayaTopRow}>
+                <View style={styles.mayaAvatarCircle}>
+                  <Text style={styles.mayaAvatarEmoji}>🧠</Text>
+                </View>
+                <View style={styles.mayaTextCol}>
+                  <View style={styles.mayaHeaderLine}>
+                    <Text style={styles.mayaWarningTitle}>
+                      {metrics.status === 'red'
+                        ? '🚨 Branch is overloaded!'
+                        : '🌱 Equilibrium Suggestion'}
+                    </Text>
+                    <View style={styles.justNowPill}>
+                      <Text style={styles.justNowText}>Just now</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.mayaRecommendationText}>
+                    Maya recommends trimming secondary chores tonight to keep your botanical canopy vibrant and well-rested.
+                  </Text>
+                </View>
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.mayaActionRow}>
+                <TouchableOpacity
+                  style={styles.lightenBtn}
+                  onPress={handleLightenSchedule}
+                >
+                  <Text style={styles.lightenBtnText}>🌲 Lighten Schedule ✨</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.laterBtn}
+                  onPress={() => setMayaCardDismissed(true)}
+                >
+                  <Text style={styles.laterBtnText}>Later</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       )}
 
-      {/* Dynamic Avatar Mirror (Tree or Cat) */}
-      <AvatarContainer load={metrics.dimensions} overallStatus={metrics.status} />
-
-      {/* 5-Dimension Load Breakdown */}
-      <LoadBarGroup dimensions={metrics.dimensions} />
-
-      {/* Bottom Action Triggers */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.destressBtn} onPress={onOpenSoundingBoard}>
-          <Text style={styles.destressBtnText}>Open Sounding Board</Text>
+      {/* Bottom Ask Maya Input Pill */}
+      <View style={styles.askMayaBar}>
+        <Text style={styles.askMayaIcon}>✨</Text>
+        <TextInput
+          style={styles.askMayaInput}
+          placeholder="Ask Maya Sprout to rebalance chores or help..."
+          placeholderTextColor={BotanicalTokens.colors.outline}
+          value={mayaPromptText}
+          onChangeText={setMayaPromptText}
+          onSubmitEditing={handleSendMayaPrompt}
+        />
+        <TouchableOpacity style={styles.askMayaSendBtn} onPress={handleSendMayaPrompt}>
+          <Text style={styles.sendBtnIcon}>🎙️</Text>
         </TouchableOpacity>
       </View>
 
@@ -108,117 +191,277 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({ onOpenSoundingBoard })
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF8F4',
+    backgroundColor: BotanicalTokens.colors.backgroundCanvas,
   },
   contentContainer: {
-    padding: 18,
-    paddingBottom: 40,
-    gap: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: 6,
-  },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    color: '#8A8275',
-  },
-  dateTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#221F1C',
-  },
-  checkInPill: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DCD6CB',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-  },
-  checkInPillText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#38332C',
-  },
-  summaryCard: {
-    borderRadius: 16,
     padding: 16,
-    borderWidth: 1.5,
-    gap: 8,
+    paddingBottom: 40,
+    gap: 10,
   },
-  summaryTopRow: {
+  statusClusterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    color: '#6B6459',
-  },
-  statusBadgeText: {
-    fontSize: 18,
-    fontWeight: '800',
+    gap: 8,
     marginTop: 2,
   },
-  ringBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ringBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  summaryDesc: {
-    fontSize: 12,
-    color: '#4A443B',
-    lineHeight: 16,
-  },
-  forecastBanner: {
+  clusterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF7ED',
+    backgroundColor: BotanicalTokens.colors.surface,
     borderWidth: 1,
-    borderColor: '#FED7AA',
-    borderRadius: 10,
-    paddingVertical: 8,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.full,
+    paddingVertical: 5,
     paddingHorizontal: 12,
-    gap: 8,
+    gap: 5,
+    ...BotanicalTokens.shadows.soft,
   },
-  forecastDot: {
+  clusterIcon: {
+    fontSize: 12,
+  },
+  clusterText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  vitalityCard: {
+    backgroundColor: BotanicalTokens.colors.surface,
+    borderRadius: BotanicalTokens.radii.lg,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    padding: 14,
+    gap: 8,
+    ...BotanicalTokens.shadows.soft,
+  },
+  vitalityTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  vitalityTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vitalityPulseDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#EA580C',
+    backgroundColor: BotanicalTokens.colors.primary,
   },
-  forecastText: {
-    flex: 1,
+  vitalityTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  vitalityValueGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  vitalityPercent: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
+  },
+  bloomingBadge: {
+    backgroundColor: 'rgba(255, 218, 211, 0.7)',
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: BotanicalTokens.radii.full,
+  },
+  bloomingBadgeText: {
     fontSize: 11,
-    color: '#9A3412',
-    lineHeight: 15,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.secondary,
   },
-  actionRow: {
-    marginTop: 4,
+  progressTrack: {
+    width: '100%',
+    height: 10,
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    borderRadius: 5,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(235, 220, 203, 0.6)',
   },
-  destressBtn: {
-    backgroundColor: '#6B5FA8',
-    paddingVertical: 12,
-    borderRadius: 12,
+  progressFill: {
+    height: '100%',
+    backgroundColor: BotanicalTokens.colors.primaryLush,
+    borderRadius: 5,
+  },
+  vitalityFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  destressBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  vitalityFootItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  footIcon: {
+    fontSize: 11,
+  },
+  footText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  footTextHighlight: {
+    fontSize: 11,
     fontWeight: '700',
+    color: BotanicalTokens.colors.primary,
+  },
+  mayaCard: {
+    backgroundColor: BotanicalTokens.colors.surface,
+    borderRadius: BotanicalTokens.radii.lg,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    padding: 14,
+    gap: 10,
+    ...BotanicalTokens.shadows.card,
+  },
+  mayaTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  mayaAvatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ffdad3',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mayaAvatarEmoji: {
+    fontSize: 16,
+  },
+  mayaTextCol: {
+    flex: 1,
+    gap: 2,
+  },
+  mayaHeaderLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mayaWarningTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.secondary,
+  },
+  justNowPill: {
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: BotanicalTokens.radii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(235, 220, 203, 0.7)',
+  },
+  justNowText: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  mayaRecommendationText: {
+    fontSize: 11,
+    color: BotanicalTokens.colors.onSurfaceVariant,
+    lineHeight: 15,
+  },
+  mayaActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 2,
+  },
+  lightenBtn: {
+    flex: 1,
+    backgroundColor: BotanicalTokens.colors.primary,
+    paddingVertical: 8,
+    borderRadius: BotanicalTokens.radii.full,
+    alignItems: 'center',
+    ...BotanicalTokens.shadows.soft,
+  },
+  lightenBtnText: {
+    color: BotanicalTokens.colors.onPrimary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  laterBtn: {
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: BotanicalTokens.radii.full,
+  },
+  laterBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  balancedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  balancedCheckCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#d0ffe3',
+    borderWidth: 1,
+    borderColor: 'rgba(9, 100, 68, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkIconText: {
+    color: BotanicalTokens.colors.primary,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  balancedTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
+  },
+  balancedSub: {
+    fontSize: 11,
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  askMayaBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.full,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    gap: 8,
+    marginTop: 4,
+    ...BotanicalTokens.shadows.card,
+  },
+  askMayaIcon: {
+    fontSize: 16,
+  },
+  askMayaInput: {
+    flex: 1,
+    fontSize: 12,
+    color: BotanicalTokens.colors.onSurfaceDark,
+    paddingVertical: 6,
+  },
+  askMayaSendBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: BotanicalTokens.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnIcon: {
+    fontSize: 13,
   },
 });

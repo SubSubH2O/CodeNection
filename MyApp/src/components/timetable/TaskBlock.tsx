@@ -1,144 +1,242 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Task, TaskCategory } from '../../types/task';
+import { BotanicalTokens } from '../../theme/tokens';
 
 interface TaskBlockProps {
   task: Task;
   onToggleComplete: (id: string) => void;
   onDelete: (id: string) => void;
+  onPress?: (task: Task) => void;
 }
 
-const CATEGORY_COLORS: Record<TaskCategory, { bg: string; border: string; text: string }> = {
-  coursework: { bg: '#F2EEF8', border: '#D3C6E8', text: '#573E7A' },
-  work: { bg: '#EBF4F6', border: '#BBD8DE', text: '#2A5D6B' },
-  errands: { bg: '#FBF5E8', border: '#E7D5AA', text: '#785A1D' },
-  social: { bg: '#EEF2FB', border: '#C5D4F3', text: '#344C82' },
-  personal: { bg: '#EDF6F1', border: '#C0DFCD', text: '#2C6442' },
-  recovery: { bg: '#FFF1F2', border: '#FECDD3', text: '#BE123C' },
+const CATEGORY_META: Record<
+  TaskCategory,
+  { emoji: string; bg: string; border: string; text: string; label: string }
+> = {
+  coursework: {
+    emoji: '🧠',
+    bg: '#ffdad3',
+    border: '#ff9881',
+    text: '#974634',
+    label: 'Mental',
+  },
+  work: {
+    emoji: '💼',
+    bg: '#e7e2d9',
+    border: '#bec9c1',
+    text: '#1d1b16',
+    label: 'Work',
+  },
+  errands: {
+    emoji: '🧺',
+    bg: '#ffddb2',
+    border: '#ffb94c',
+    text: '#774f00',
+    label: 'Errand',
+  },
+  social: {
+    emoji: '💬',
+    bg: '#d0ffe3',
+    border: '#88d6af',
+    text: '#096444',
+    label: 'Social',
+  },
+  personal: {
+    emoji: '🍃',
+    bg: '#f3ede4',
+    border: '#ebdccb',
+    text: '#43362a',
+    label: 'Rest',
+  },
+  recovery: {
+    emoji: '🌿',
+    bg: '#ffdad6',
+    border: '#ba1a1a',
+    text: '#93000a',
+    label: 'Recovery Buffer',
+  },
 };
 
-export const TaskBlock: React.FC<TaskBlockProps> = ({ task, onToggleComplete, onDelete }) => {
-  const scheme = CATEGORY_COLORS[task.category] || CATEGORY_COLORS.personal;
+export const TaskBlock: React.FC<TaskBlockProps> = ({
+  task,
+  onToggleComplete,
+  onDelete,
+  onPress,
+}) => {
+  const meta = CATEGORY_META[task.category] || CATEGORY_META.personal;
 
   return (
-    <View
-      style={[
-        styles.block,
-        { backgroundColor: scheme.bg, borderColor: scheme.border },
-        task.completed && styles.blockCompleted,
-      ]}
-    >
-      <View style={styles.topRow}>
-        <View style={styles.timeTag}>
-          <Text style={[styles.timeText, { color: scheme.text }]}>
-            {task.startTime || 'Flexible'} {task.endTime ? `- ${task.endTime}` : `(${task.durationMinutes}m)`}
-          </Text>
-        </View>
-        {task.isBurnoutDebtLocked && (
-          <View style={styles.lockedPill}>
-            <Text style={styles.lockedPillText}>LOCKED RECOVERY</Text>
-          </View>
-        )}
+    <View style={styles.rowWrapper}>
+      {/* Time Label */}
+      <View style={styles.timeCol}>
+        <Text style={styles.timeText}>{task.startTime || 'Flex'}</Text>
       </View>
 
-      <Text
+      {/* Task Card Container */}
+      <TouchableOpacity
         style={[
-          styles.title,
-          { color: scheme.text },
-          task.completed && styles.titleCompleted,
+          styles.taskCard,
+          { backgroundColor: meta.bg, borderColor: meta.border },
+          task.completed && styles.cardCompleted,
         ]}
+        activeOpacity={0.85}
+        onPress={() => onPress?.(task)}
       >
-        {task.title}
-      </Text>
+        <View style={styles.contentLeft}>
+          <Text style={styles.categoryEmoji}>{meta.emoji}</Text>
+          <View style={styles.titleCol}>
+            <Text
+              style={[
+                styles.titleText,
+                { color: meta.text },
+                task.completed && styles.titleCompleted,
+              ]}
+              numberOfLines={1}
+            >
+              {task.title}
+            </Text>
+            {task.isBurnoutDebtLocked ? (
+              <Text style={styles.lockedText}>LOCKED RECOVERY · REST PRESERVED</Text>
+            ) : (
+              <Text style={styles.subMeta}>
+                {meta.label} · {task.difficulty}/5 Strain
+              </Text>
+            )}
+          </View>
+        </View>
 
-      <View style={styles.footerRow}>
-        <Text style={styles.categoryBadge}>{task.category.toUpperCase()}</Text>
-        <View style={styles.actions}>
+        <View style={styles.rightActions}>
+          <View style={styles.durationBadge}>
+            <Text style={styles.durationText}>{task.durationMinutes}m</Text>
+          </View>
+
           <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => onToggleComplete(task.id)}
+            style={styles.doneToggle}
+            onPress={(e) => {
+              e.stopPropagation();
+              onToggleComplete(task.id);
+            }}
           >
-            <Text style={styles.actionBtnText}>{task.completed ? 'Undo' : 'Done'}</Text>
+            <Text style={styles.doneToggleText}>{task.completed ? '↩' : '✓'}</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={() => onDelete(task.id)}
+            style={styles.deleteBtn}
+            onPress={(e) => {
+              e.stopPropagation();
+              onDelete(task.id);
+            }}
           >
-            <Text style={[styles.actionBtnText, styles.deleteText]}>Del</Text>
+            <Text style={styles.deleteBtnText}>✕</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  block: {
-    borderRadius: 12,
-    borderWidth: 1.5,
-    padding: 10,
-    gap: 4,
+  rowWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 8,
   },
-  blockCompleted: {
-    opacity: 0.55,
+  timeCol: {
+    width: 44,
+    alignItems: 'flex-end',
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  timeTag: {},
   timeText: {
     fontSize: 11,
     fontWeight: '700',
+    color: BotanicalTokens.colors.primary,
   },
-  lockedPill: {
-    backgroundColor: '#BE123C',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  taskCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: BotanicalTokens.radii.lg,
+    borderWidth: 1,
+    ...BotanicalTokens.shadows.soft,
   },
-  lockedPillText: {
-    fontSize: 9,
+  cardCompleted: {
+    opacity: 0.5,
+  },
+  contentLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  categoryEmoji: {
+    fontSize: 16,
+  },
+  titleCol: {
+    flex: 1,
+    gap: 1,
+  },
+  titleText: {
+    fontSize: 13,
     fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '700',
   },
   titleCompleted: {
     textDecorationLine: 'line-through',
   },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  categoryBadge: {
+  lockedText: {
     fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    color: '#6B6459',
+    fontWeight: '800',
+    color: '#93000a',
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  actionBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  },
-  actionBtnText: {
+  subMeta: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#38332C',
+    fontWeight: '500',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
-  deleteText: {
-    color: '#C44D56',
+  rightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 6,
+  },
+  durationBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: BotanicalTokens.radii.full,
+  },
+  durationText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  doneToggle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneToggleText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
+  },
+  deleteBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtnText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.error,
   },
 });

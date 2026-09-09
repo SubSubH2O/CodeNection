@@ -1,135 +1,423 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { TreeAvatarState } from '../../types/avatar';
-import { LoadDimension } from '../../types/load';
+import { BotanicalTokens } from '../../theme/tokens';
 
 interface TreeAvatarProps {
   treeState: TreeAvatarState;
+  onPruneSocial?: () => void;
 }
 
-export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState }) => {
-  const branches = Object.values(treeState.branches);
+export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState, onPruneSocial }) => {
+  const branches = treeState.branches;
+
+  const mental = branches.mental;
+  const social = branches.social;
+  const physical = branches.physical;
+  const errands = branches.errands;
+  const time = branches.time;
+
+  const getCanopyColor = (load: number) => {
+    if (load > 80) return { main: '#ba1a1a', highlight: '#e57373' };
+    if (load > 60) return { main: '#c48a3f', highlight: '#f5b041' };
+    return { main: '#40916c', highlight: '#52b788' };
+  };
+
+  const mentalCol = getCanopyColor(mental.load);
+  const socialCol = getCanopyColor(social.load);
+  const physicalCol = getCanopyColor(physical.load);
+  const errandsCol = getCanopyColor(errands.load);
+  const timeCol = getCanopyColor(time.load);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.treeTrunkVisual}>
-        <View style={styles.treeCrown}>
-          {branches.map((b) => (
-            <View
-              key={b.dimension}
-              style={[
-                styles.branchBadge,
-                {
-                  borderColor: b.colorHex,
-                  backgroundColor: b.status === 'red' ? '#FDF2F0' : b.status === 'yellow' ? '#FFFDF5' : '#F2F8F5',
-                  transform: b.isDrooping ? [{ translateY: 6 }] : [{ translateY: 0 }],
-                },
-              ]}
-            >
-              <View style={[styles.branchIndicatorDot, { backgroundColor: b.colorHex }]} />
-              <View style={styles.branchTextCol}>
-                <View style={styles.branchHeaderRow}>
-                  <Text style={styles.branchName}>{b.label}</Text>
-                  <Text style={[styles.branchPercent, { color: b.colorHex }]}>{b.load}%</Text>
-                </View>
-                <Text style={styles.branchSub}>
-                  {b.isDrooping ? 'Drooping - Overloaded' : b.isBlooming ? 'Blooming - Balanced' : 'Normal Branch'}
-                </Text>
-              </View>
-            </View>
-          ))}
+    <View style={styles.viewportCard}>
+      {/* Sky Glow */}
+      <View style={styles.skyGlow} />
+
+      {/* Top Center Badge: Time Load */}
+      <View style={styles.timeBadgeWrap}>
+        <View style={styles.pillBadge}>
+          <Text style={styles.badgeIcon}>⏳</Text>
+          <Text style={styles.badgeText}>
+            Time Load: <Text style={styles.badgeBold}>{(time.load * 0.08).toFixed(1)}h</Text>
+          </Text>
+        </View>
+      </View>
+
+      {/* Badge Upper Left: Mental */}
+      <View style={styles.mentalBadgeWrap}>
+        <View style={[styles.pillBadge, mental.status === 'red' && styles.pillBadgeAlert]}>
+          <View style={[styles.statusDot, { backgroundColor: mentalCol.main }]} />
+          <Text style={[styles.badgeText, mental.status === 'red' && styles.textAlert]}>
+            Mental {mental.load}%
+          </Text>
+        </View>
+        <Text style={styles.badgeSub}>
+          {mental.load > 75 ? 'Cognitive Heavy' : 'Deep Focus'}
+        </Text>
+      </View>
+
+      {/* Badge Upper Right: Social */}
+      <View style={styles.socialBadgeWrap}>
+        <View style={[styles.pillBadge, social.status === 'red' && styles.pillBadgeAlert]}>
+          <Text style={styles.badgeIcon}>{social.status === 'red' ? '⚠️' : '💬'}</Text>
+          <Text style={[styles.badgeText, social.status === 'red' && styles.textAlert]}>
+            Social {social.load}%
+          </Text>
+        </View>
+        {social.status === 'red' ? (
+          <TouchableOpacity
+            style={styles.pruneBtn}
+            onPress={onPruneSocial}
+          >
+            <Text style={styles.pruneBtnText}>✂️ Prune Load</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.badgeSub}>Restful Circle</Text>
+        )}
+      </View>
+
+      {/* Main Tree Structure */}
+      <View style={styles.treeContainer}>
+        {/* Top Canopy (Time) */}
+        <View
+          style={[
+            styles.canopyCrown,
+            { backgroundColor: timeCol.main },
+            time.isDrooping && styles.canopyDrooping,
+          ]}
+        >
+          <View style={[styles.canopyInnerHighlight, { backgroundColor: timeCol.highlight }]} />
         </View>
 
-        <View style={styles.trunkStem}>
-          <View style={styles.barkLine} />
+        {/* Middle Branch Clumps */}
+        <View style={styles.midCanopyRow}>
+          {/* Upper Left Canopy (Mental) */}
+          <View
+            style={[
+              styles.canopyMental,
+              { backgroundColor: mentalCol.main },
+              mental.isDrooping && styles.canopyDrooping,
+            ]}
+          >
+            <View style={[styles.canopyInnerHighlight, { backgroundColor: mentalCol.highlight }]} />
+          </View>
+
+          {/* Upper Right Canopy (Social) */}
+          <View
+            style={[
+              styles.canopySocial,
+              { backgroundColor: socialCol.main },
+              social.isDrooping && styles.canopyDrooping,
+            ]}
+          >
+            <View style={[styles.canopyInnerHighlight, { backgroundColor: socialCol.highlight }]} />
+          </View>
         </View>
-        <View style={styles.rootBase}>
-          <Text style={styles.rootText}>5-DIMENSION REVERSIBLE MIRROR</Text>
+
+        {/* Lower Branch Clumps */}
+        <View style={styles.lowerCanopyRow}>
+          {/* Lower Left Canopy (Physical) */}
+          <View
+            style={[
+              styles.canopyPhysical,
+              { backgroundColor: physicalCol.main },
+              physical.isDrooping && styles.canopyDrooping,
+            ]}
+          >
+            <View style={[styles.canopyInnerHighlight, { backgroundColor: physicalCol.highlight }]} />
+          </View>
+
+          {/* Central Trunk */}
+          <View style={styles.trunk}>
+            {/* Diagonal Branch Bars */}
+            <View style={[styles.diagonalBranch, styles.branchUpperLeft]} />
+            <View style={[styles.diagonalBranch, styles.branchUpperRight]} />
+            <View style={[styles.diagonalBranch, styles.branchLowerLeft]} />
+            <View style={[styles.diagonalBranch, styles.branchLowerRight]} />
+          </View>
+
+          {/* Lower Right Canopy (Errands) */}
+          <View
+            style={[
+              styles.canopyErrands,
+              { backgroundColor: errandsCol.main },
+              errands.isDrooping && styles.canopyDrooping,
+            ]}
+          >
+            <View style={[styles.canopyInnerHighlight, { backgroundColor: errandsCol.highlight }]} />
+          </View>
         </View>
+
+        {/* Base Mound & Soil Ground Line */}
+        <View style={styles.groundContainer}>
+          <View style={styles.grassMound} />
+          <View style={styles.soilEarth} />
+        </View>
+      </View>
+
+      {/* Badge Lower Left: Physical */}
+      <View style={styles.physicalBadgeWrap}>
+        <View style={[styles.pillBadge, physical.status === 'red' && styles.pillBadgeAlert]}>
+          <Text style={styles.badgeIcon}>💧</Text>
+          <Text style={[styles.badgeText, physical.status === 'red' && styles.textAlert]}>
+            Physical {physical.load}%
+          </Text>
+        </View>
+        <Text style={styles.badgeSub}>
+          {physical.load > 70 ? 'Needs Recovery' : 'Hydrated & Cozy'}
+        </Text>
+      </View>
+
+      {/* Badge Lower Right: Errands */}
+      <View style={styles.errandsBadgeWrap}>
+        <View style={[styles.pillBadge, errands.status === 'red' && styles.pillBadgeAlert]}>
+          <Text style={styles.badgeIcon}>🧺</Text>
+          <Text style={[styles.badgeText, errands.status === 'red' && styles.textAlert]}>
+            Errands {errands.load}%
+          </Text>
+        </View>
+        <Text style={styles.badgeSub}>
+          {errands.load > 70 ? 'Tasks Backlogged' : 'All Tended'}
+        </Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E6E1D8',
-    marginVertical: 10,
-  },
-  treeTrunkVisual: {
-    alignItems: 'center',
-  },
-  treeCrown: {
+  viewportCard: {
     width: '100%',
-    gap: 8,
+    height: 310,
+    backgroundColor: BotanicalTokens.colors.surfaceBright,
+    borderRadius: BotanicalTokens.radii.lg,
+    borderWidth: 1.5,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'flex-end',
+    ...BotanicalTokens.shadows.card,
+    marginVertical: 6,
   },
-  branchBadge: {
+  skyGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: 'rgba(255, 221, 178, 0.25)',
+  },
+  timeBadgeWrap: {
+    position: 'absolute',
+    top: 10,
+    alignSelf: 'center',
+    zIndex: 10,
+  },
+  mentalBadgeWrap: {
+    position: 'absolute',
+    top: 38,
+    left: 10,
+    zIndex: 10,
+    gap: 2,
+  },
+  socialBadgeWrap: {
+    position: 'absolute',
+    top: 38,
+    right: 10,
+    zIndex: 10,
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  physicalBadgeWrap: {
+    position: 'absolute',
+    bottom: 36,
+    left: 10,
+    zIndex: 10,
+    gap: 2,
+  },
+  errandsBadgeWrap: {
+    position: 'absolute',
+    bottom: 36,
+    right: 10,
+    zIndex: 10,
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  pillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    borderRadius: BotanicalTokens.radii.full,
+    gap: 4,
+    ...BotanicalTokens.shadows.soft,
   },
-  branchIndicatorDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 10,
+  pillBadgeAlert: {
+    backgroundColor: '#ffdad6',
+    borderColor: '#ff9881',
   },
-  branchTextCol: {
-    flex: 1,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  branchHeaderRow: {
+  badgeIcon: {
+    fontSize: 10,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  badgeBold: {
+    color: BotanicalTokens.colors.primary,
+    fontWeight: '800',
+  },
+  textAlert: {
+    color: '#93000a',
+  },
+  badgeSub: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: BotanicalTokens.colors.textMuted,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  pruneBtn: {
+    backgroundColor: BotanicalTokens.colors.secondary,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: BotanicalTokens.radii.full,
+    ...BotanicalTokens.shadows.soft,
+  },
+  pruneBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  treeContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  canopyCrown: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 4,
+    marginBottom: -25,
+  },
+  canopyInnerHighlight: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+  },
+  midCanopyRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    width: 220,
+    zIndex: 3,
+    marginBottom: -15,
   },
-  branchName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#221F1C',
-  },
-  branchPercent: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  branchSub: {
-    fontSize: 11,
-    color: '#6B6459',
-    marginTop: 2,
-  },
-  trunkStem: {
-    width: 24,
-    height: 28,
-    backgroundColor: '#8B7355',
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    marginTop: 8,
+  canopyMental: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  barkLine: {
-    width: 2,
-    height: 20,
-    backgroundColor: '#6D5940',
+  canopySocial: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  rootBase: {
-    marginTop: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    backgroundColor: '#EDE8DF',
-    borderRadius: 12,
+  lowerCanopyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    zIndex: 2,
   },
-  rootText: {
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    color: '#5C5449',
+  canopyPhysical: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: -10,
+  },
+  canopyErrands: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -10,
+  },
+  canopyDrooping: {
+    transform: [{ translateY: 8 }],
+  },
+  trunk: {
+    width: 26,
+    height: 140,
+    backgroundColor: BotanicalTokens.colors.treeTrunk,
+    borderRadius: 13,
+    zIndex: 1,
+    position: 'relative',
+  },
+  diagonalBranch: {
+    position: 'absolute',
+    width: 38,
+    height: 10,
+    backgroundColor: BotanicalTokens.colors.treeTrunk,
+    borderRadius: 5,
+  },
+  branchUpperLeft: {
+    top: 30,
+    left: -28,
+    transform: [{ rotate: '-35deg' }],
+  },
+  branchUpperRight: {
+    top: 30,
+    right: -28,
+    transform: [{ rotate: '35deg' }],
+  },
+  branchLowerLeft: {
+    top: 75,
+    left: -32,
+    transform: [{ rotate: '-25deg' }],
+  },
+  branchLowerRight: {
+    top: 75,
+    right: -32,
+    transform: [{ rotate: '25deg' }],
+  },
+  groundContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: -8,
+  },
+  grassMound: {
+    width: '90%',
+    height: 8,
+    backgroundColor: BotanicalTokens.colors.grassMound,
+    borderRadius: 4,
+  },
+  soilEarth: {
+    width: '96%',
+    height: 18,
+    backgroundColor: BotanicalTokens.colors.soilEarth,
+    borderTopLeftRadius: 9,
+    borderTopRightRadius: 9,
+    marginTop: 2,
   },
 });

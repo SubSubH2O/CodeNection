@@ -3,11 +3,8 @@ import { View, Text, TouchableOpacity, Modal, ScrollView, StyleSheet } from 'rea
 import {
   CircuitBreakerPayload,
   CircuitBreakerOption,
-  SwapOption,
-  ScopeDownOption,
-  RescheduleOption,
-  BurnoutDebtOption,
 } from '../../types/circuitBreaker';
+import { BotanicalTokens } from '../../theme/tokens';
 
 interface CircuitBreakerModalProps {
   payload: CircuitBreakerPayload | null;
@@ -22,72 +19,130 @@ export const CircuitBreakerModal: React.FC<CircuitBreakerModalProps> = ({
 }) => {
   if (!payload || !payload.triggered) return null;
 
-  const renderOptionCard = (opt: CircuitBreakerOption) => {
-    return (
-      <TouchableOpacity
-        key={opt.type}
-        style={styles.optionCard}
-        onPress={() => onSelectOption(opt)}
-      >
-        <View style={styles.optionHeader}>
-          <View style={styles.badgePill}>
-            <Text style={styles.badgePillText}>{opt.badge}</Text>
-          </View>
-          <Text style={styles.projectedText}>Projected: {opt.projectedLoad}%</Text>
-        </View>
-
-        <Text style={styles.optionTitle}>{opt.title}</Text>
-        <Text style={styles.optionDesc}>{opt.description}</Text>
-
-        <View style={styles.selectBtn}>
-          <Text style={styles.selectBtnText}>Apply Resolution</Text>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
   return (
     <Modal visible={true} transparent animationType="slide" onRequestClose={onDismiss}>
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
-          <View style={styles.handle} />
+          {/* Tactile Drag Handle */}
+          <View style={styles.dragHandle} />
 
-          <View style={styles.header}>
-            <Text style={styles.eyebrow}>CIRCUIT BREAKER ACTIVATED</Text>
-            <Text style={styles.title}>Overload Threshold Reached</Text>
-            <Text style={styles.sub}>
-              Adding "{payload.offendingTask.title}" exceeds your daily capacity limit.
-            </Text>
-          </View>
-
-          {/* Before -> After Impact Card */}
-          <View style={styles.impactCard}>
-            <View style={styles.impactRow}>
-              <View style={styles.metricBox}>
-                <Text style={styles.metricLabel}>CURRENT</Text>
-                <Text style={styles.metricNum}>{payload.currentLoad}%</Text>
-              </View>
-              <Text style={styles.arrowText}>→</Text>
-              <View style={[styles.metricBox, styles.metricBoxOver]}>
-                <Text style={styles.metricLabel}>UNPROTECTED</Text>
-                <Text style={[styles.metricNum, styles.metricNumOver]}>
-                  {payload.projectedLoadWithoutIntervention}%
+          {/* Modal Header */}
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <View style={styles.titleLine}>
+                <Text style={styles.headerEmoji}>🎯</Text>
+                <Text style={styles.headerTitle} numberOfLines={1}>
+                  {payload.offendingTask.title}
                 </Text>
               </View>
+              <Text style={styles.headerSub}>
+                {payload.offendingTask.durationMinutes}m duration · {payload.offendingTask.category.toUpperCase()}
+              </Text>
             </View>
-            <Text style={styles.impactFooter}>
-              Automated intervention required to preserve cognitive equilibrium.
-            </Text>
+            <TouchableOpacity style={styles.closeBtn} onPress={onDismiss}>
+              <Text style={styles.closeBtnIcon}>✕</Text>
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionHeader}>SELECT AN ACTIONABLE SOLUTION (4 PATHWAYS):</Text>
+          {/* Badges Pod */}
+          <View style={styles.badgesRow}>
+            <View style={styles.strainBadge}>
+              <Text style={styles.strainBadgeText}>⚠️ +{payload.offendingTask.difficulty * 6}% Strain Load</Text>
+            </View>
+            <View style={styles.priorityBadge}>
+              <Text style={styles.priorityBadgeText}>High Cognitive Priority</Text>
+            </View>
+            <View style={styles.branchBadge}>
+              <Text style={styles.branchBadgeText}>🌿 Canopy Saturation</Text>
+            </View>
+          </View>
 
-          <ScrollView style={styles.optionsScroll} contentContainerStyle={styles.optionsContainer}>
-            {payload.options.map(renderOptionCard)}
+          {/* Biomarkers / Soil Strain Duo Cards from Stitch */}
+          <View style={styles.duoCardsRow}>
+            {/* Brain Load */}
+            <View style={styles.duoCard}>
+              <View style={styles.duoCardHeader}>
+                <Text style={styles.duoCardLabel}>🧠 Brain Load</Text>
+                <Text style={styles.duoCardValue}>
+                  {payload.projectedLoadWithoutIntervention}% Peak
+                </Text>
+              </View>
+              <View style={styles.duoTrack}>
+                <View
+                  style={[
+                    styles.duoFill,
+                    {
+                      width: `${Math.min(100, payload.projectedLoadWithoutIntervention)}%`,
+                      backgroundColor: BotanicalTokens.colors.tertiaryContainer,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={styles.duoSubText}>High neuro energy required</Text>
+            </View>
+
+            {/* Soil Strain */}
+            <View style={styles.duoCard}>
+              <View style={styles.duoCardHeader}>
+                <Text style={styles.duoCardLabel}>🌶️ Soil Strain</Text>
+                <Text style={[styles.duoCardValue, { color: BotanicalTokens.colors.error }]}>
+                  8/10 Hot & Dry
+                </Text>
+              </View>
+              <View style={styles.duoTrack}>
+                <View
+                  style={[
+                    styles.duoFill,
+                    { width: '85%', backgroundColor: BotanicalTokens.colors.error },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.duoSubText, { color: BotanicalTokens.colors.error }]}>
+                Risk of leaf wilt
+              </Text>
+            </View>
+          </View>
+
+          {/* Maya Whispers Pod */}
+          <View style={styles.mayaWhisperPod}>
+            <View style={styles.whisperAvatar}>
+              <Text style={styles.whisperEmoji}>🌱</Text>
+            </View>
+            <View style={styles.whisperTextCol}>
+              <Text style={styles.whisperTitle}>Maya whispers ✨</Text>
+              <Text style={styles.whisperQuote}>
+                "Adding this task pushes canopy saturation past 85%. Select a botanical resolution below to keep your leaves bouncy!"
+              </Text>
+            </View>
+          </View>
+
+          {/* 4 Actionable Resolutions Scroll */}
+          <Text style={styles.resolutionsHeading}>BOTANICAL CIRCUIT BREAKER OPTIONS:</Text>
+          <ScrollView style={styles.optionsList} contentContainerStyle={styles.optionsContainer}>
+            {payload.options.map((opt) => (
+              <TouchableOpacity
+                key={opt.type}
+                style={styles.optionCard}
+                onPress={() => onSelectOption(opt)}
+              >
+                <View style={styles.optionHeader}>
+                  <View style={styles.optionBadgePill}>
+                    <Text style={styles.optionBadgeText}>{opt.badge}</Text>
+                  </View>
+                  <Text style={styles.projectedNum}>Projected Load: {opt.projectedLoad}%</Text>
+                </View>
+                <Text style={styles.optionTitleText}>{opt.title}</Text>
+                <Text style={styles.optionDescText}>{opt.description}</Text>
+                <View style={styles.applyBtn}>
+                  <Text style={styles.applyBtnText}>Apply This Path →</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </ScrollView>
 
-          <TouchableOpacity style={styles.dismissBtn} onPress={onDismiss}>
-            <Text style={styles.dismissBtnText}>Cancel Task Addition</Text>
+          {/* Cancel */}
+          <TouchableOpacity style={styles.cancelBtn} onPress={onDismiss}>
+            <Text style={styles.cancelBtnText}>Dismiss & Cancel Addition</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -98,162 +153,262 @@ export const CircuitBreakerModal: React.FC<CircuitBreakerModalProps> = ({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(28, 27, 25, 0.55)',
+    backgroundColor: 'rgba(60, 40, 20, 0.35)',
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: '#FAF8F4',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
-    padding: 20,
-    gap: 12,
+    backgroundColor: '#fffdf9',
+    borderTopLeftRadius: BotanicalTokens.radii.xl,
+    borderTopRightRadius: BotanicalTokens.radii.xl,
+    maxHeight: '92%',
+    padding: 18,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    ...BotanicalTokens.shadows.modal,
   },
-  handle: {
+  dragHandle: {
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#DCD6CB',
+    backgroundColor: BotanicalTokens.colors.borderSandstone,
     alignSelf: 'center',
     marginBottom: 4,
   },
-  header: {
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flex: 1,
     gap: 2,
   },
-  eyebrow: {
-    fontSize: 10,
+  titleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerEmoji: {
+    fontSize: 18,
+  },
+  headerTitle: {
+    fontSize: 18,
     fontWeight: '800',
-    letterSpacing: 0.8,
-    color: '#C44D56',
+    color: BotanicalTokens.colors.onSurfaceDark,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#221F1C',
+  headerSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
-  sub: {
-    fontSize: 12,
-    color: '#6B6459',
-  },
-  impactCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E6E1D8',
+  closeBtn: {
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    padding: 14,
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnIcon: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  strainBadge: {
+    backgroundColor: BotanicalTokens.colors.errorContainer,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BotanicalTokens.radii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(186, 26, 26, 0.2)',
+  },
+  strainBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.error,
+  },
+  priorityBadge: {
+    backgroundColor: BotanicalTokens.colors.secondaryFixed,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BotanicalTokens.radii.full,
+    borderWidth: 1,
+    borderColor: 'rgba(151, 70, 52, 0.2)',
+  },
+  priorityBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.secondary,
+  },
+  branchBadge: {
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BotanicalTokens.radii.full,
+  },
+  branchBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  duoCardsRow: {
+    flexDirection: 'row',
     gap: 8,
   },
-  impactRow: {
+  duoCard: {
+    flex: 1,
+    backgroundColor: BotanicalTokens.colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.md,
+    padding: 10,
+    gap: 4,
+  },
+  duoCardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  metricBox: {
-    alignItems: 'center',
-  },
-  metricBoxOver: {
-    backgroundColor: '#FDF2F0',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  metricLabel: {
+  duoCardLabel: {
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.6,
-    color: '#8A8275',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
-  metricNum: {
-    fontSize: 22,
+  duoCardValue: {
+    fontSize: 10,
     fontWeight: '800',
-    color: '#38332C',
+    color: BotanicalTokens.colors.tertiary,
   },
-  metricNumOver: {
-    color: '#C44D56',
+  duoTrack: {
+    height: 6,
+    backgroundColor: BotanicalTokens.colors.surfaceContainerHigh,
+    borderRadius: 3,
+    overflow: 'hidden',
   },
-  arrowText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#8A8275',
+  duoFill: {
+    height: '100%',
+    borderRadius: 3,
   },
-  impactFooter: {
-    fontSize: 11,
-    color: '#8A8275',
-    textAlign: 'center',
+  duoSubText: {
+    fontSize: 9,
+    fontWeight: '500',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
-  sectionHeader: {
+  mayaWhisperPod: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: 'rgba(9, 100, 68, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(9, 100, 68, 0.2)',
+    borderRadius: BotanicalTokens.radii.md,
+    padding: 10,
+    gap: 8,
+  },
+  whisperAvatar: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(46, 125, 91, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  whisperEmoji: {
+    fontSize: 12,
+  },
+  whisperTextCol: {
+    flex: 1,
+    gap: 1,
+  },
+  whisperTitle: {
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    color: '#5C5449',
-    marginTop: 4,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
   },
-  optionsScroll: {
-    maxHeight: 280,
+  whisperQuote: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+    lineHeight: 15,
+  },
+  resolutionsHeading: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: BotanicalTokens.colors.textMuted,
+    marginTop: 2,
+  },
+  optionsList: {
+    maxHeight: 220,
   },
   optionsContainer: {
-    gap: 10,
-    paddingBottom: 8,
+    gap: 8,
+    paddingBottom: 6,
   },
   optionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffffff',
     borderWidth: 1.5,
-    borderColor: '#DCD6CB',
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.md,
+    padding: 12,
+    gap: 4,
   },
   optionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  badgePill: {
-    backgroundColor: '#EAE6F5',
+  optionBadgePill: {
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: BotanicalTokens.radii.full,
   },
-  badgePillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#6B5FA8',
+  optionBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
   },
-  projectedText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#4C7A67',
-  },
-  optionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#221F1C',
-  },
-  optionDesc: {
-    fontSize: 12,
-    color: '#6B6459',
-    lineHeight: 16,
-  },
-  selectBtn: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#221F1C',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  selectBtnText: {
-    color: '#FFFFFF',
+  projectedNum: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primaryContainer,
   },
-  dismissBtn: {
-    paddingVertical: 10,
+  optionTitleText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  optionDescText: {
+    fontSize: 11,
+    color: BotanicalTokens.colors.onSurfaceVariant,
+    lineHeight: 15,
+  },
+  applyBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: BotanicalTokens.colors.primary,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: BotanicalTokens.radii.full,
+    marginTop: 2,
+  },
+  applyBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  cancelBtn: {
+    paddingVertical: 8,
     alignItems: 'center',
   },
-  dismissBtnText: {
+  cancelBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8A8275',
+    color: BotanicalTokens.colors.textMuted,
   },
 });

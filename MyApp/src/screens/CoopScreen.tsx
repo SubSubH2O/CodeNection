@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { useCoopCircle, useMyReceivedTokens, coopActions } from '../store/useCoopStore';
 import { FriendStatusCard } from '../components/coop/FriendStatusCard';
 import { TokenInteractionType } from '../types/coop';
+import { BotanicalTokens } from '../theme/tokens';
 
 export const CoopScreen: React.FC = () => {
   const circle = useCoopCircle();
@@ -12,19 +13,36 @@ export const CoopScreen: React.FC = () => {
   const handleSendToken = (memberId: string, token: TokenInteractionType) => {
     coopActions.sendTokenToMember(memberId, token);
     const memberName = circle.members.find((m) => m.id === memberId)?.name || 'Friend';
-    const label = token === 'virtual_coffee' ? 'Virtual Coffee' : 'No-Reply Pass';
-    setToastMessage(`Sent ${label} to ${memberName}.`);
+    const label = token === 'virtual_coffee' ? 'Spring Water' : 'No-Reply Rest Pass';
+    setToastMessage(`Sent ${label} to ${memberName}! 🌿`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleMistAll = () => {
+    circle.members.forEach((m) => {
+      coopActions.sendTokenToMember(m.id, 'virtual_coffee');
+    });
+    setToastMessage('🚿 Misted all plants in the sanctuary!');
     setTimeout(() => setToastMessage(null), 3000);
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.eyebrow}>CO-OP DEN</Text>
-        <Text style={styles.title}>{circle.name} (Private Circle)</Text>
-        <Text style={styles.sub}>
-          Shared fatigue awareness among 2-3 trusted peers. Zero leaderboards, zero competitive pressure.
-        </Text>
+      {/* Stitch Buddy Garden Header Pod */}
+      <View style={styles.headerPod}>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerTitleLine}>
+            <Text style={styles.headerTitle}>🏡 Buddy Garden</Text>
+            <View style={styles.beaconDot} />
+          </View>
+          <Text style={styles.headerSub}>
+            {circle.members.length} friends resting · Tap to water & send recovery
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.mistAllBtn} onPress={handleMistAll}>
+          <Text style={styles.mistBtnText}>🚿 Mist All</Text>
+        </TouchableOpacity>
       </View>
 
       {toastMessage && (
@@ -33,23 +51,8 @@ export const CoopScreen: React.FC = () => {
         </View>
       )}
 
-      {/* My Received Tokens */}
-      <View style={styles.receivedBox}>
-        <Text style={styles.receivedTitle}>MY INBOX: SUPPORT RECEIVED TODAY</Text>
-        <View style={styles.receivedChips}>
-          {myTokens.map((tok, idx) => (
-            <View key={idx} style={styles.receivedChip}>
-              <Text style={styles.receivedChipText}>
-                {tok === 'virtual_coffee' ? 'Coffee received' : 'No-Reply Pass (rest approved)'}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      {/* Circle Members */}
-      <View style={styles.membersSection}>
-        <Text style={styles.sectionHeader}>CIRCLE MEMBERS (REAL-TIME MIRROR):</Text>
+      {/* 2-Column Buddy Card Grid */}
+      <View style={styles.gridContainer}>
         {circle.members.map((member) => (
           <FriendStatusCard
             key={member.id}
@@ -58,6 +61,22 @@ export const CoopScreen: React.FC = () => {
           />
         ))}
       </View>
+
+      {/* My Received Support Tokens Card */}
+      <View style={styles.receivedCard}>
+        <Text style={styles.receivedHeading}>MY GARDEN INBOX: HYDRATION RECEIVED</Text>
+        <View style={styles.receivedChips}>
+          {myTokens.map((tok, idx) => (
+            <View key={idx} style={styles.receivedChip}>
+              <Text style={styles.receivedChipText}>
+                {tok === 'virtual_coffee'
+                  ? '💧 Fresh Water from Kai'
+                  : '💤 Rest Pass: No Reply Needed'}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
     </ScrollView>
   );
 };
@@ -65,59 +84,92 @@ export const CoopScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF8F4',
+    backgroundColor: BotanicalTokens.colors.backgroundCanvas,
   },
   content: {
-    padding: 18,
+    padding: 16,
     paddingBottom: 40,
-    gap: 14,
+    gap: 12,
   },
-  header: {
+  headerPod: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: BotanicalTokens.colors.surface,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.lg,
+    padding: 12,
+    ...BotanicalTokens.shadows.soft,
+  },
+  headerLeft: {
+    flex: 1,
     gap: 2,
-    marginTop: 6,
   },
-  eyebrow: {
+  headerTitleLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  beaconDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: BotanicalTokens.colors.primary,
+  },
+  headerSub: {
     fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    color: '#4C7A67',
+    fontWeight: '500',
+    color: BotanicalTokens.colors.textMuted,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#221F1C',
+  mistAllBtn: {
+    backgroundColor: BotanicalTokens.colors.primary,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BotanicalTokens.radii.full,
+    ...BotanicalTokens.shadows.soft,
   },
-  sub: {
-    fontSize: 12,
-    color: '#6B6459',
-    lineHeight: 16,
+  mistBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
   },
   toastBox: {
-    backgroundColor: '#F2F8F5',
+    backgroundColor: '#d0ffe3',
     borderWidth: 1,
-    borderColor: '#C2DFD2',
-    padding: 10,
-    borderRadius: 8,
+    borderColor: '#88d6af',
+    padding: 8,
+    borderRadius: BotanicalTokens.radii.full,
   },
   toastText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#2C6442',
+    color: BotanicalTokens.colors.primary,
     textAlign: 'center',
   },
-  receivedBox: {
-    backgroundColor: '#FFFFFF',
+  gridContainer: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  receivedCard: {
+    backgroundColor: BotanicalTokens.colors.surface,
+    borderRadius: BotanicalTokens.radii.lg,
     borderWidth: 1,
-    borderColor: '#E6E1D8',
-    borderRadius: 14,
+    borderColor: BotanicalTokens.colors.borderSandstone,
     padding: 14,
     gap: 8,
+    ...BotanicalTokens.shadows.soft,
   },
-  receivedTitle: {
+  receivedHeading: {
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.8,
-    color: '#8A8275',
+    color: BotanicalTokens.colors.textMuted,
   },
   receivedChips: {
     flexDirection: 'row',
@@ -125,25 +177,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   receivedChip: {
-    backgroundColor: '#FAF8F4',
+    backgroundColor: BotanicalTokens.colors.surfaceContainerLow,
     borderWidth: 1,
-    borderColor: '#DCD6CB',
-    paddingVertical: 4,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingVertical: 5,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: BotanicalTokens.radii.full,
   },
   receivedChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#38332C',
-  },
-  membersSection: {
-    gap: 12,
-  },
-  sectionHeader: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    color: '#5C5449',
+    color: BotanicalTokens.colors.onSurfaceDark,
   },
 });

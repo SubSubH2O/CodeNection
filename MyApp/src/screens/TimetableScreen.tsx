@@ -13,7 +13,7 @@ import { TimetableGrid } from '../components/timetable/TimetableGrid';
 import { CapacitySidebar } from '../components/timetable/CapacitySidebar';
 import { CircuitBreakerModal } from '../components/circuitBreaker/CircuitBreakerModal';
 import { evaluateCircuitBreaker } from '../core/circuitBreaker/circuitBreakerEngine';
-import { Task, TaskCategory, TaskPriority } from '../types/task';
+import { Task, TaskCategory } from '../types/task';
 import {
   CircuitBreakerPayload,
   CircuitBreakerOption,
@@ -22,17 +22,30 @@ import {
   RescheduleOption,
   BurnoutDebtOption,
 } from '../types/circuitBreaker';
+import { BotanicalTokens } from '../theme/tokens';
 
-const DATES = [
-  { label: 'Wed', date: '2026-09-09' },
-  { label: 'Thu (Today)', date: '2026-09-10' },
-  { label: 'Fri', date: '2026-09-11' },
+const WEEK_DAYS = [
+  { day: 'MON', dateNum: '24', date: '2026-09-08' },
+  { day: 'TUE', dateNum: '25', date: '2026-09-09' },
+  { day: 'WED', dateNum: '26', date: '2026-09-10' },
+  { day: 'THU', dateNum: '27', date: '2026-09-11' },
+  { day: 'FRI', dateNum: '28', date: '2026-09-12' },
+];
+
+const FILTER_CATEGORIES: { id: string; label: string; emoji: string }[] = [
+  { id: 'all', label: 'All', emoji: '✨' },
+  { id: 'coursework', label: 'Mental', emoji: '🧠' },
+  { id: 'personal', label: 'Rest', emoji: '🍃' },
+  { id: 'social', label: 'Social', emoji: '💬' },
+  { id: 'errands', label: 'Errand', emoji: '🧺' },
 ];
 
 export const TimetableScreen: React.FC = () => {
   const tasks = useTasks();
   const selectedDate = useSelectedDate();
   const metrics = useLoadMetrics();
+
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState('all');
 
   // Add Task Modal State
   const [addModalVisible, setAddModalVisible] = useState(false);
@@ -45,7 +58,12 @@ export const TimetableScreen: React.FC = () => {
   // Circuit Breaker Interception State
   const [circuitBreakerPayload, setCircuitBreakerPayload] = useState<CircuitBreakerPayload | null>(null);
 
-  const dayTasks = tasks.filter((t) => t.scheduledDate === selectedDate);
+  const dayTasks = tasks.filter((t) => {
+    const isDateMatch = t.scheduledDate === selectedDate;
+    if (!isDateMatch) return false;
+    if (activeCategoryFilter === 'all') return true;
+    return t.category === activeCategoryFilter;
+  });
 
   const handleCreateTask = () => {
     if (!title.trim()) return;
@@ -60,10 +78,16 @@ export const TimetableScreen: React.FC = () => {
       durationMinutes: parsedDuration,
       dueDate: selectedDate,
       scheduledDate: selectedDate,
+      startTime: '10:00',
       difficulty,
       milestones: [],
       completed: false,
-      primaryDimension: category === 'coursework' || category === 'work' ? 'mental' : category === 'errands' ? 'errands' : 'social',
+      primaryDimension:
+        category === 'coursework' || category === 'work'
+          ? 'mental'
+          : category === 'errands'
+          ? 'errands'
+          : 'social',
     };
 
     // Evaluate Circuit Breaker
@@ -90,15 +114,12 @@ export const TimetableScreen: React.FC = () => {
     switch (option.type) {
       case 'swap': {
         const swapOpt = option as SwapOption;
-        // Postpone swapped task to next date
         taskActions.postponeTask(swapOpt.swappedTask.id, swapOpt.targetNewDate);
-        // Add the offending task
         taskActions.addTask(offending);
         break;
       }
       case 'scope_down': {
         const scopeOpt = option as ScopeDownOption;
-        // Add 45-minute sprint tonight
         const immediateTask: Task = {
           ...offending,
           durationMinutes: scopeOpt.immediateMinutes,
@@ -106,7 +127,6 @@ export const TimetableScreen: React.FC = () => {
         };
         taskActions.addTask(immediateTask);
 
-        // Defer remainder to next date
         if (scopeOpt.deferredMinutes > 0) {
           const deferredTask: Task = {
             ...offending,
@@ -132,9 +152,7 @@ export const TimetableScreen: React.FC = () => {
       }
       case 'burnout_debt': {
         const debtOpt = option as BurnoutDebtOption;
-        // Add offending task tonight
         taskActions.addTask(offending);
-        // Inject locked recovery block tomorrow
         taskActions.addBurnoutDebtLock(
           debtOpt.recoveryDate,
           '11:00',
@@ -159,23 +177,72 @@ export const TimetableScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Date Switcher */}
-      <View style={styles.dateRow}>
-        {DATES.map((d) => (
+      {/* Stitch Week Header & Quick Switcher */}
+      <View style={styles.weekHeaderCard}>
+        <View style={styles.weekLeft}>
+          <View style={styles.calendarIconBox}>
+            <Text style={styles.calendarEmoji}>📅</Text>
+          </View>
+          <View>
+            <Text style={styles.weekRangeTitle}>Oct 24 – 28</Text>
+            <Text style={styles.weekPhaseSubtitle}>Sprout Phase · Waning Harvest</Text>
+          </View>
+        </View>
+
+        <View style={styles.weekSwitcherPill}>
+          <Text style={styles.switchArrow}>‹</Text>
+          <Text style={styles.switchActiveText}>This Week</Text>
+          <Text style={styles.switchArrow}>›</Text>
+        </View>
+      </View>
+
+      {/* Stitch Category Filter Chips */}
+      <View style={styles.filtersRow}>
+        {FILTER_CATEGORIES.map((cat) => (
           <TouchableOpacity
-            key={d.date}
-            style={[styles.dateTab, selectedDate === d.date && styles.dateTabActive]}
-            onPress={() => taskActions.setSelectedDate(d.date)}
+            key={cat.id}
+            style={[
+              styles.filterChip,
+              activeCategoryFilter === cat.id && styles.filterChipActive,
+            ]}
+            onPress={() => setActiveCategoryFilter(cat.id)}
           >
-            <Text style={[styles.dateTabText, selectedDate === d.date && styles.dateTabTextActive]}>
-              {d.label}
+            <Text style={styles.filterChipEmoji}>{cat.emoji}</Text>
+            <Text
+              style={[
+                styles.filterChipText,
+                activeCategoryFilter === cat.id && styles.filterChipTextActive,
+              ]}
+            >
+              {cat.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Main Grid + Sidebar Layout */}
-      <View style={styles.scheduleRow}>
+      {/* Mini Calendar Weekstrip */}
+      <View style={styles.weekstrip}>
+        {WEEK_DAYS.map((w) => {
+          const isSelected = selectedDate === w.date;
+          return (
+            <TouchableOpacity
+              key={w.date}
+              style={[styles.stripDay, isSelected && styles.stripDayActive]}
+              onPress={() => taskActions.setSelectedDate(w.date)}
+            >
+              <Text style={[styles.stripDayName, isSelected && styles.stripDayNameActive]}>
+                {w.day}
+              </Text>
+              <Text style={[styles.stripDateNum, isSelected && styles.stripDateNumActive]}>
+                {w.dateNum}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Main Timetable Content */}
+      <View style={styles.timetableRow}>
         <CapacitySidebar
           overall={metrics.overall}
           status={metrics.status}
@@ -183,9 +250,11 @@ export const TimetableScreen: React.FC = () => {
         />
 
         <View style={styles.gridCol}>
-          <View style={styles.gridHeader}>
-            <Text style={styles.gridCountText}>{dayTasks.length} Commitments</Text>
-            <TouchableOpacity style={styles.addBtn} onPress={() => setAddModalVisible(true)}>
+          <View style={styles.gridHeaderRow}>
+            <Text style={styles.gridHeadingText}>
+              {dayTasks.length} Commitments Scheduled
+            </Text>
+            <TouchableOpacity style={styles.addCommitmentBtn} onPress={() => setAddModalVisible(true)}>
               <Text style={styles.addBtnText}>+ Add Task</Text>
             </TouchableOpacity>
           </View>
@@ -202,14 +271,14 @@ export const TimetableScreen: React.FC = () => {
       <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={() => setAddModalVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>New Commitment</Text>
+            <Text style={styles.modalTitle}>Plant New Commitment 🌱</Text>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Title</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="e.g. Operating Systems Lab"
-                placeholderTextColor="#A8A297"
+                placeholder="e.g. Quarterly OKR Review"
+                placeholderTextColor={BotanicalTokens.colors.outline}
                 value={title}
                 onChangeText={setTitle}
               />
@@ -226,7 +295,7 @@ export const TimetableScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Category</Text>
+              <Text style={styles.inputLabel}>Branch Category</Text>
               <View style={styles.chipsRow}>
                 {(['coursework', 'work', 'errands', 'social', 'personal'] as TaskCategory[]).map((cat) => (
                   <TouchableOpacity
@@ -243,7 +312,7 @@ export const TimetableScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Can this move if busy? (Flexibility)</Text>
+              <Text style={styles.inputLabel}>Can this move if heavy? (Flexibility)</Text>
               <View style={styles.toggleRow}>
                 <TouchableOpacity
                   style={[styles.flexBtn, isFlexible && styles.flexBtnActive]}
@@ -265,14 +334,14 @@ export const TimetableScreen: React.FC = () => {
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalSubmit} onPress={handleCreateTask}>
-                <Text style={styles.modalSubmitText}>Commit to Schedule</Text>
+                <Text style={styles.modalSubmitText}>Commit to Garden</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Circuit Breaker Interception Modal */}
+      {/* Circuit Breaker Modal */}
       <CircuitBreakerModal
         payload={circuitBreakerPayload}
         onSelectOption={handleApplyResolution}
@@ -285,68 +354,170 @@ export const TimetableScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF8F4',
-    padding: 16,
-    gap: 12,
+    backgroundColor: BotanicalTokens.colors.backgroundCanvas,
+    padding: 14,
+    gap: 10,
   },
-  dateRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  dateTab: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E6E1D8',
-    alignItems: 'center',
-  },
-  dateTabActive: {
-    backgroundColor: '#221F1C',
-    borderColor: '#221F1C',
-  },
-  dateTabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B6459',
-  },
-  dateTabTextActive: {
-    color: '#FFFFFF',
-  },
-  scheduleRow: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  gridCol: {
-    flex: 1,
-    gap: 8,
-  },
-  gridHeader: {
+  weekHeaderCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: BotanicalTokens.colors.surface,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.lg,
+    padding: 12,
+    ...BotanicalTokens.shadows.soft,
   },
-  gridCountText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B6459',
+  weekLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
-  addBtn: {
-    backgroundColor: '#4C7A67',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  calendarIconBox: {
+    width: 32,
+    height: 32,
     borderRadius: 8,
+    backgroundColor: 'rgba(9, 100, 68, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarEmoji: {
+    fontSize: 16,
+  },
+  weekRangeTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  weekPhaseSubtitle: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  weekSwitcherPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BotanicalTokens.colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BotanicalTokens.radii.full,
+    gap: 6,
+  },
+  switchArrow: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  switchActiveText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.primary,
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    gap: 6,
+    overflow: 'hidden',
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: BotanicalTokens.colors.surface,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: BotanicalTokens.radii.full,
+    gap: 4,
+  },
+  filterChipActive: {
+    backgroundColor: '#ffdad3',
+    borderColor: '#ff9881',
+  },
+  filterChipEmoji: {
+    fontSize: 12,
+  },
+  filterChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  filterChipTextActive: {
+    color: '#974634',
+    fontWeight: '800',
+  },
+  weekstrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: BotanicalTokens.colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.md,
+    padding: 4,
+  },
+  stripDay: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 6,
+    borderRadius: BotanicalTokens.radii.sm,
+  },
+  stripDayActive: {
+    backgroundColor: BotanicalTokens.colors.primary,
+    ...BotanicalTokens.shadows.soft,
+  },
+  stripDayName: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceVariant,
+  },
+  stripDayNameActive: {
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  stripDateNum: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: BotanicalTokens.colors.onSurfaceDark,
+  },
+  stripDateNumActive: {
+    color: '#ffffff',
+  },
+  timetableRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  gridCol: {
+    flex: 1,
+    gap: 6,
+  },
+  gridHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 2,
+  },
+  gridHeadingText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: BotanicalTokens.colors.textMuted,
+  },
+  addCommitmentBtn: {
+    backgroundColor: BotanicalTokens.colors.primary,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: BotanicalTokens.radii.full,
+    ...BotanicalTokens.shadows.soft,
   },
   addBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#ffffff',
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(28, 27, 25, 0.5)',
+    backgroundColor: 'rgba(60, 40, 20, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 18,
@@ -354,17 +525,18 @@ const styles = StyleSheet.create({
   modalSheet: {
     width: '100%',
     maxWidth: 380,
-    backgroundColor: '#FAF8F4',
-    borderRadius: 18,
+    backgroundColor: '#fffdf9',
+    borderRadius: BotanicalTokens.radii.lg,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E6E1D8',
+    borderColor: BotanicalTokens.colors.borderSandstone,
     gap: 12,
+    ...BotanicalTokens.shadows.modal,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#221F1C',
+    color: BotanicalTokens.colors.onSurfaceDark,
   },
   inputGroup: {
     gap: 4,
@@ -372,17 +544,17 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#6B6459',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
   textInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#DCD6CB',
-    borderRadius: 8,
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    borderRadius: BotanicalTokens.radii.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    fontSize: 13,
-    color: '#221F1C',
+    fontSize: 12,
+    color: BotanicalTokens.colors.onSurfaceDark,
   },
   chipsRow: {
     flexDirection: 'row',
@@ -392,46 +564,48 @@ const styles = StyleSheet.create({
   chip: {
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 6,
+    borderRadius: BotanicalTokens.radii.full,
     borderWidth: 1,
-    borderColor: '#DCD6CB',
-    backgroundColor: '#FFFFFF',
+    borderColor: BotanicalTokens.colors.borderSandstone,
+    backgroundColor: '#ffffff',
   },
   chipActive: {
-    backgroundColor: '#221F1C',
-    borderColor: '#221F1C',
+    backgroundColor: BotanicalTokens.colors.primary,
+    borderColor: BotanicalTokens.colors.primary,
   },
   chipText: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#4A443B',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
   chipTextActive: {
-    color: '#FFFFFF',
+    color: '#ffffff',
+    fontWeight: '700',
   },
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#EBE7DE',
-    borderRadius: 8,
+    backgroundColor: BotanicalTokens.colors.surfaceContainer,
+    borderRadius: BotanicalTokens.radii.full,
     padding: 2,
   },
   flexBtn: {
     flex: 1,
-    paddingVertical: 6,
+    paddingVertical: 5,
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: BotanicalTokens.radii.full,
   },
   flexBtnActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffffff',
+    ...BotanicalTokens.shadows.soft,
   },
   flexBtnText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6B6459',
+    color: BotanicalTokens.colors.onSurfaceVariant,
   },
   flexBtnTextActive: {
-    color: '#221F1C',
-    fontWeight: '700',
+    color: BotanicalTokens.colors.onSurfaceDark,
+    fontWeight: '800',
   },
   modalActions: {
     flexDirection: 'row',
@@ -446,17 +620,17 @@ const styles = StyleSheet.create({
   modalCancelText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B6459',
+    color: BotanicalTokens.colors.textMuted,
   },
   modalSubmit: {
-    backgroundColor: '#4C7A67',
+    backgroundColor: BotanicalTokens.colors.primary,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: BotanicalTokens.radii.full,
   },
   modalSubmitText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: '800',
+    color: '#ffffff',
   },
 });
