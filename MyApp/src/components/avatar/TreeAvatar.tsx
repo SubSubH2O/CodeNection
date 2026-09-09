@@ -77,10 +77,10 @@ export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState, onPruneSocial
         )}
       </View>
 
-      {/* Illustrated Tree Graphic */}
+      {/* Illustrated Cartoon Tree Graphic */}
       <View style={styles.treeContainer}>
         <Image
-          source={require('../../../assets/tree_illustration.png')}
+          source={require('../../../assets/cartoon_tree.png')}
           style={styles.treeImage}
           resizeMode="contain"
         />
