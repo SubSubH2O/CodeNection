@@ -1,0 +1,16 @@
+# Student Overload Go Undetected
+- Core Problems
+- - Silent Multi-Domain Accumulation
+- - Tracking Fatigue
+- - student feel lost because too much work
+- - No self-reflection 
+- - have idea but cant express cleaerly
+- Potential Mechanisms
+- - AI to help with organizing idea
+- - Multi-Dimensional Load Scoring
+- - Dynamic Visual Proxy (Avatar/Environment)
+- Solutions
+- - A tree for stress visualization
+- - Agentic Task Offloader (30% Kickstart)
+- - Proactive Load Rebalancer (Swap/Scope/Debt)
+- - Ambient Peer Co-op Den
