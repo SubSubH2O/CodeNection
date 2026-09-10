@@ -5,9 +5,11 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LoadTreeProvider, useLoadTree } from './store';
 import { Candidate, Dimension, Task, WEEK, dateLabel, duration, remaining, stamp, time } from './model';
 import { seedTask } from './demo';
-import { Avatar, C, Button, Chip, Icon, Meter, Notice, Page, S, Segmented, Sheet, SOFT_SHADOW, TONE, Title, Txt } from './ui';
+import { Avatar, C, Button, Chip, Glass, Icon, LIFT_SHADOW, Meter, Notice, Page, S, Segmented, Sheet, SOFT_SHADOW, SplitBar, TONE, Title, Txt } from './ui';
 import { ICON, dimensionLoad, loadScores, summarise } from './load';
+import { HeroScene } from './HeroScene';
 import { TreeScene } from './TreeScene';
+import { Capture, InputBar } from './InputBar';
 import { Setup } from './Setup';
 import { DayTimeline, MonthGrid, changesOn, planChanges } from './Calendar';
 import { Comparison, Progress, TaskEditor } from './TaskFlow';
@@ -30,7 +32,6 @@ function Application() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [dimension, setDimension] = useState<Dimension | undefined>(undefined);
   const [day, setDay] = useState(WEEK[0]);
-  const [capture, setCapture] = useState('');
   const [toast, setToast] = useState('');
   const [reduceMotion, setReduceMotion] = useState(false);
   const [completedFilter, setCompletedFilter] = useState(false);
@@ -76,12 +77,15 @@ function Application() {
     setPending(null);
     setToast('Plan approved. Your calendar and next step are ready.');
   };
-  const startPlan = () => {
-    const title = capture.trim();
-    if (!title) { setToast('Type what you need to do, then tap Plan.'); return; }
-    setCapture('');
-    setOverlay({ type: 'editor', seed: seedTask(title) });
+  const startPlan = (c: Capture) => {
+    const seed = seedTask(c.title || 'Untitled task');
+    setOverlay({ type: 'editor', seed: c.title ? seed : { ...seed, title: '', steps: [] } });
+    if (c.note) setToast(`${c.note}. Give it a title and check how it fits.`);
   };
+  const weekLabel = `${dateLabel(WEEK[0])} – ${dateLabel(WEEK[6])}`;
+  const busyMinutes = state.commitments.filter(c => c.kind !== 'recovery' && stamp(c, true) > state.now).reduce((sum, c) => sum + c.end - c.start, 0);
+  const restMinutes = state.commitments.filter(c => c.kind === 'recovery' && stamp(c, true) > state.now).reduce((sum, c) => sum + c.end - c.start, 0);
+  const openMinutes = Math.max(0, state.preferences.availability.reduce((sum, w) => sum + w.end - w.start, 0) - coverage);
 
   if (!ready) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}><ActivityIndicator color={C.green} /><Txt>Opening your week…</Txt></View>;
 
@@ -109,8 +113,7 @@ function Application() {
     </Page> : <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
       {tab === 'home' && <Page>
-        <TreeScene loads={loads} selected={dimension} onSelect={d => { setDimension(d); setOverlay({ type: 'dimension', dim: d }); }} />
-        <Txt muted style={{ fontSize: 13, textAlign: 'center', marginTop: -8 }}>Tap a branch to view details</Txt>
+        <HeroScene loads={loads} selected={dimension} onSelect={d => { setDimension(d); setOverlay({ type: 'dimension', dim: d }); }} greeting={`Hello, ${state.preferences.name || 'there'}`} week={weekLabel} />
 
         {needsPlan && <View style={[S.row, { padding: 14, borderRadius: 16, backgroundColor: C.amberBg }]}>
           <Icon name="clock" size={19} color={C.amber} />
@@ -136,6 +139,15 @@ function Application() {
           <Txt style={{ color: '#B9D2C1', fontSize: 13 }}>{duration(nextStep.remaining)} · {nextTask.title}</Txt>
         </Pressable>}
 
+
+        <View style={[S.card, { padding: 16, gap: 10 }]}>
+          <View style={S.between}><Txt style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>Where your week goes</Txt><Txt muted style={{ fontSize: 11 }}>from here on</Txt></View>
+          <SplitBar parts={[{ key: 'busy', value: busyMinutes, color: C.green }, { key: 'study', value: coverage, color: C.moss }, { key: 'rest', value: restMinutes, color: C.teal }, { key: 'open', value: openMinutes, color: C.track }]} />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {[{ l: 'Commitments', v: busyMinutes, c: C.green }, { l: 'Study', v: coverage, c: C.moss }, { l: 'Recovery', v: restMinutes, c: C.teal }, { l: 'Open', v: openMinutes, c: '#C4D3CB' }].map(x =>
+              <View key={x.l} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: x.c }} /><Txt muted style={{ fontSize: 11.5 }}>{x.l} {duration(x.v)}</Txt></View>)}
+          </View>
+        </View>
 
         {state.tasks.length > 0 && <View style={{ gap: 10 }}>
           <View style={S.between}>
@@ -192,14 +204,7 @@ function Application() {
         </View>
       </View>}
 
-      <View style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, gap: 7, backgroundColor: C.paper }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.white, borderRadius: 30, borderWidth: 1, borderColor: '#E3EDE7', padding: 7, ...SOFT_SHADOW }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Add a task manually" onPress={() => setOverlay({ type: 'editor' })} style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: C.sage, alignItems: 'center', justifyContent: 'center' }}><Icon name="plus" size={20} /></Pressable>
-          <TextInput value={capture} onChangeText={setCapture} onSubmitEditing={startPlan} returnKeyType="go" accessibilityLabel="Add a task or assignment" placeholder="What needs doing?" placeholderTextColor={C.muted} style={{ flex: 1, minWidth: 0, fontSize: 14, color: C.ink, paddingVertical: 10 }} />
-          <Pressable accessibilityRole="button" onPress={startPlan} style={{ minHeight: 44, paddingHorizontal: 17, justifyContent: 'center', borderRadius: 22, backgroundColor: C.green }}><Txt style={{ color: C.white, fontWeight: '700' }}>Plan</Txt></Pressable>
-        </View>
-        <Txt muted style={{ fontSize: 12, textAlign: 'center' }}>We’ll fit it into your calendar.</Txt>
-      </View>
+      <InputBar onCapture={startPlan} onManual={() => setOverlay({ type: 'editor' })} onNotice={setToast} />
     </KeyboardAvoidingView>}
 
     {overlay?.type === 'dimension' && (() => {

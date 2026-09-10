@@ -55,7 +55,7 @@ const LEAVES: Record<Dimension, Leaf[]> = ORDERED.reduce((all, id, index) => {
   return all;
 }, {} as Record<Dimension, Leaf[]>);
 
-export function TreeScene({ loads, selected, onSelect }: { loads: DimensionLoad[]; selected?: Dimension; onSelect: (d: Dimension) => void }) {
+export function TreeScene({ loads, selected, onSelect, bare = false }: { loads: DimensionLoad[]; selected?: Dimension; onSelect: (d: Dimension) => void; bare?: boolean }) {
   const [width, setWidth] = useState(340);
   const artWidth = Math.min(width, 420);
   const artHeight = (artWidth * VB.h) / VB.w;
@@ -63,7 +63,7 @@ export function TreeScene({ loads, selected, onSelect }: { loads: DimensionLoad[
   const toneOf = (id: Dimension) => loads.find(l => l.id === id)?.tone ?? 'calm';
 
   return (
-    <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={{ height: artHeight + 26, borderRadius: 28, overflow: 'hidden', backgroundColor: '#EAF5F0' }}>
+    <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={bare ? { height: artHeight + 4 } : { height: artHeight + 26, borderRadius: 28, overflow: 'hidden', backgroundColor: '#EAF5F0' }}>
       <Svg width={artWidth} height={artHeight} viewBox={`0 0 ${VB.w} ${VB.h}`} style={{ position: 'absolute', left: inset, top: 0 }} accessibilityLabel="Your load, shown as one tree with five branches">
         <Defs>
           <LinearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#DCEFE7" /><Stop offset="0.65" stopColor="#F1F8E9" /><Stop offset="1" stopColor="#D5E9D4" /></LinearGradient>
@@ -163,7 +163,7 @@ export function TreeScene({ loads, selected, onSelect }: { loads: DimensionLoad[
           </Pressable>
         );
       })}
-      <View pointerEvents="none" style={{ position: 'absolute', bottom: 8, left: 0, right: 0, alignItems: 'center' }}><Txt muted style={{ fontSize: 11 }}>Your week, one branch at a time</Txt></View>
+      {!bare && <View pointerEvents="none" style={{ position: 'absolute', bottom: 8, left: 0, right: 0, alignItems: 'center' }}><Txt muted style={{ fontSize: 11 }}>Your week, one branch at a time</Txt></View>}
     </View>
   );
 }

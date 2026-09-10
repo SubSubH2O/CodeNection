@@ -3,9 +3,10 @@ import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Plat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 
-export const C = { paper: '#F2F8F5', green: '#145B48', ink: '#203D35', muted: '#61786F', line: '#DCEAE3', white: '#FFFFFF', sage: '#E3F1EA', moss: '#459F86', amber: '#85601E', amberBg: '#FFF3DB', red: '#9A473B', redBg: '#FCEDE7', teal: '#316F60', tealBg: '#E2F2EC', track: '#E9F0EC', calm: '#459F86', mid: '#D79832', heavy: '#D67B37', flag: '#BD7416', flagBg: '#FFF6E7' };
+export const C = { paper: '#F2F8F5', green: '#145B48', ink: '#203D35', muted: '#61786F', line: '#DCEAE3', white: '#FFFFFF', sage: '#E3F1EA', moss: '#459F86', amber: '#85601E', amberBg: '#FFF3DB', red: '#9A473B', redBg: '#FCEDE7', teal: '#316F60', tealBg: '#E2F2EC', track: '#E9F0EC', calm: '#459F86', mid: '#D79832', heavy: '#D67B37', flag: '#BD7416', flagBg: '#FFF6E7', skyTop: '#CFEAF5', skyBottom: '#E7F6EE', meadow: '#BFE3A8', glass: 'rgba(255,255,255,0.78)', glassLine: 'rgba(255,255,255,0.85)' };
 // Native shadows and elevation also render on web; no platform-only blur dependency.
 export const SOFT_SHADOW: ViewStyle = { shadowColor: '#286D57', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 2 };
+export const LIFT_SHADOW: ViewStyle = { shadowColor: '#1B5B49', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.16, shadowRadius: 28, elevation: 8 };
 export const TONE = { calm: C.calm, moderate: C.mid, heavy: C.heavy };
 export const S = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 }, between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
@@ -44,6 +45,11 @@ const paths: Record<string, string> = {
   physical: 'M4.2 9.4v5.2M7 7.2v9.6M17 7.2v9.6M19.8 9.4v5.2M7 12h10',
   errands: 'M2.6 4.2h2.6l2.5 10.6h9.6l2.1-8.2H6.2M9.4 20a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4ZM17.4 20a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4Z', undo: 'M4 9h10a6 6 0 1 1-5 11M4 9l5-5M4 9l5 5',
   person: 'M12 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5ZM5 20.5a7 7 0 0 1 14 0',
+  clip: 'M20 11.5 12.4 19a4.6 4.6 0 0 1-6.5-6.5l7.6-7.6a3 3 0 0 1 4.3 4.3l-7.5 7.5a1.5 1.5 0 0 1-2.1-2.1l6.9-6.9',
+  mic: 'M12 3.5a2.8 2.8 0 0 1 2.8 2.8v5.4a2.8 2.8 0 0 1-5.6 0V6.3A2.8 2.8 0 0 1 12 3.5ZM5.5 11.2a6.5 6.5 0 0 0 13 0M12 17.7V21M9 21h6',
+  send: 'M4.4 11.9 20 4.5l-7.4 15.6-1.8-6.4-6.4-1.8Z',
+  stop: 'M7.5 7.5h9v9h-9Z',
+  doc: 'M13.5 3H6.5v18h11V7ZM13.5 3v4h4M9 12h6M9 16h4',
 };
 export function Icon({ name, color = C.green, size = 22 }: { name: string; color?: string; size?: number }) {
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.65} strokeLinecap="round" strokeLinejoin="round">
@@ -58,6 +64,15 @@ export function Avatar({ size = 42 }: { size?: number }) {
     <Circle cx={20} cy={16.4} r={6.6} fill="#EFC08D" />
     <Path d="M13.3 15.6c-.4-4.3 2.6-7.4 6.7-7.4s7.1 3.1 6.7 7.4c-.9-1.7-2.1-2.6-3.4-2.8-1.9-.3-2.6.8-5 .5-1.9-.2-3.4.6-5 2.3Z" fill="#2E2A26" />
   </Svg>;
+}
+export function Glass({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+  return <View style={[{ backgroundColor: C.glass, borderRadius: 16, borderWidth: 1, borderColor: C.glassLine, paddingHorizontal: 12, paddingVertical: 8 }, style]}>{children}</View>;
+}
+export function SplitBar({ parts }: { parts: { key: string; value: number; color: string }[] }) {
+  const total = parts.reduce((sum, p) => sum + p.value, 0) || 1;
+  return <View style={{ flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden', backgroundColor: C.track }}>
+    {parts.filter(p => p.value > 0).map(p => <View key={p.key} style={{ flex: p.value / total, backgroundColor: p.color }} />)}
+  </View>;
 }
 export function Button({ children, onPress, kind = 'primary', disabled = false, icon, testID }: { children: string; onPress: () => void; kind?: 'primary' | 'outline' | 'quiet' | 'danger'; disabled?: boolean; icon?: string; testID?: string }) {
   const primary = kind === 'primary';
