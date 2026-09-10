@@ -13,8 +13,8 @@ const H = 102;
 // Leaves use LoadTree's own greens, shifting to its amber as an area gets heavy. No outlines.
 const LEAVES: Record<Tone, { light: string; base: string; shade: string }> = {
   calm: { light: '#6DB78E', base: '#4F9A72', shade: '#2F7D5E' },
-  moderate: { light: '#B9BE74', base: '#9DA85C', shade: '#7F8C47' },
-  heavy: { light: '#EDC27E', base: '#E0A64F', shade: '#C28A3A' },
+  moderate: { light: '#F5D061', base: '#E2A336', shade: '#B87B1D' },
+  heavy: { light: '#F0A369', base: '#DC6E38', shade: '#B44E1E' },
 };
 const BARK = { light: '#B48A5E', base: '#946B43', shade: '#7A5535' };
 const BASE = 92; // the row where the trunk meets the ground
@@ -146,14 +146,19 @@ export function TreeScene({ loads, selected, onSelect, height }: { loads: Dimens
         const placement = c.side === 'top'
           ? { left: x - 52, width: 104, top: Math.max(0, top + (c.cy - c.ry) * P * scale - 42) }
           : c.side === 'left' ? { left: Math.max(2, x - 54), width: 108, top: below } : { left: Math.min(box.w - 110, x - 54), width: 108, top: below };
+        const isMod = load.tone === 'moderate';
+        const isHvy = load.tone === 'heavy';
+        const toneColor = isHvy ? C.heavy : isMod ? C.amber : C.green;
+        const badgeBg = active ? (isHvy ? '#FCEDE3' : isMod ? '#FCF5EA' : C.white) : (isMod ? '#FFFCF5' : C.white);
+        const badgeBorder = active ? (isHvy ? C.heavy : isMod ? C.amber : C.moss) : (isMod ? '#E8D4A8' : isHvy ? '#E8B99D' : C.line);
         return (
           <Pressable key={id} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={`${load.label} load ${load.score} out of 100`}
             onPress={() => onSelect(id)} hitSlop={4}
-            style={({ pressed }) => ({ position: 'absolute', minHeight: 36, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: active ? C.moss : C.line, backgroundColor: C.white, opacity: pressed ? 0.7 : 1, ...placement })}>
+            style={({ pressed }) => ({ position: 'absolute', minHeight: 36, paddingVertical: 6, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1.5, borderColor: badgeBorder, backgroundColor: badgeBg, opacity: pressed ? 0.7 : 1, ...placement })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-              <View style={{ width: 6, height: 6, backgroundColor: TONE[load.tone] }} />
+              <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: TONE[load.tone] }} />
               <Txt style={{ fontSize: 12, lineHeight: 16, fontWeight: '600' }}>{load.label}</Txt>
-              <Txt style={{ fontSize: 12, lineHeight: 16, fontWeight: '800', color: C.green }}>{load.score}</Txt>
+              <Txt style={{ fontSize: 12, lineHeight: 16, fontWeight: '800', color: toneColor }}>{load.score}</Txt>
             </View>
           </Pressable>
         );

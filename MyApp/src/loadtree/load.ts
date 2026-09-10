@@ -2,8 +2,8 @@ import { AppState, Commitment, Demand, Dimension, Task, dateLabel, duration, rem
 
 // Demand-weighted minutes per week that counts as a full week for each area.
 // These are reference loads, not health measurements or clinical capacity.
-const WEIGHT: Record<Demand, number> = { low: 1, medium: 1.5, high: 2 };
-const REFERENCE: Record<Dimension, number> = { mental: 1400, time: 1100, physical: 500, social: 150, errands: 170 };
+const WEIGHT: Record<Demand, number> = { low: 1.0, medium: 1.2, high: 1.4 };
+const REFERENCE: Record<Dimension, number> = { mental: 2460, time: 3900, physical: 600, social: 480, errands: 360 };
 
 export const ORDER: Dimension[] = ['mental', 'time', 'physical', 'social', 'errands'];
 export const LABEL: Record<Dimension, string> = { mental: 'Mental', time: 'Time', physical: 'Physical', social: 'Social', errands: 'Errands' };

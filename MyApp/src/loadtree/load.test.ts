@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { makeDemo, sampleTask, seedTask } from './demo';
 import { reducer } from './state';
 import { planWork } from './planner';
-import { Dimension, remaining } from './model';
+import { Dimension, WEEK, remaining } from './model';
 import { ORDER, dimensionLoad, loadScores, toneFor } from './load';
 
 const scoresOf = (s: Parameters<typeof loadScores>[0]) =>
@@ -22,7 +22,7 @@ const base = roomy();
 const start = scoresOf(base);
 
 // Every score is derived from the sample week, not hardcoded in the UI.
-assert.deepEqual(start, { mental: 51, time: 55, physical: 27, social: 40, errands: 35 });
+assert.deepEqual(start, { mental: 34, time: 32, physical: 66, social: 57, errands: 17 });
 for (const load of loadScores(base)) {
   assert(load.score >= 0 && load.score <= 100, 'Scores stay within 0-100');
   assert.equal(load.tone, toneFor(load.score));
@@ -42,10 +42,20 @@ const task = sampleTask();
 const plan = planWork(base, [task]).candidates[0];
 const withReport = reducer(base, { type: 'approve', plan });
 const loaded = scoresOf(withReport);
-assert.equal(loaded.mental, 73, '5h of focused work raises the mental branch');
-assert.equal(loaded.time, 68, 'The same work raises overall time pressure');
+assert.equal(loaded.mental, 42, '5h of focused work raises the mental branch');
+assert.equal(loaded.time, 36, 'The same work raises overall time pressure');
 for (const id of ['physical', 'social', 'errands'] as Dimension[]) assert.equal(loaded[id], start[id], `${id} is untouched by a report`);
-assert.equal(dimensionLoad(withReport, 'mental').tone, 'moderate');
+assert.equal(dimensionLoad(withReport, 'mental').tone, 'calm');
+
+// A heavier task load elevates the mental branch into 'moderate' (yellow).
+const heavyTask: Task = {
+  id: 'heavy-study', title: 'Exam prep sprint', deadline: `${WEEK[4]}T18:00`, demand: 'high',
+  steps: [{ id: 's1', title: 'Sprint', estimate: 420, remaining: 420 }]
+};
+const heavyState = reducer(withReport, { type: 'saveTask', task: heavyTask });
+const heavyScores = scoresOf(heavyState);
+assert(heavyScores.mental >= 55, 'Heavy task load pushes mental score into moderate (>= 55%)');
+assert.equal(dimensionLoad(heavyState, 'mental').tone, 'moderate', 'Tone changes to moderate');
 
 // Finishing the work returns the branches to where they started.
 let done = withReport;
@@ -54,8 +64,8 @@ assert.equal(remaining(done.tasks[0]), 0);
 assert.deepEqual(scoresOf(done), scoresOf({ ...base, tasks: [] }), 'Completed work stops counting as load');
 
 // Time is measured unweighted, so its contributor minutes are the raw week.
-assert.equal(dimensionLoad(base, 'time').minutes, 600);
-assert.equal(dimensionLoad(withReport, 'time').minutes, 750);
+assert.equal(dimensionLoad(base, 'time').minutes, 1260);
+assert.equal(dimensionLoad(withReport, 'time').minutes, 1410);
 
 // Deterministic capture: a report-shaped title seeds the prepared roadmap.
 const seeded = seedTask('Marketing report due Friday', 'report');

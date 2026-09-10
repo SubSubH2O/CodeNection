@@ -2,12 +2,17 @@ import { AppState, Block, Commitment, Task, WEEK } from './model';
 
 // Alex's week. Friday evening already holds the remaining database work, so a
 // new Friday shift is a genuine clash rather than a contrived one.
-export function makeDemo(setupDone = false): AppState {
+export function makeDemo(setupDone = true): AppState {
   const commitments: Commitment[] = [
     { id: 'lecture', title: 'Marketing lecture', date: WEEK[0], start: 540, end: 660, kind: 'fixed', dimension: 'mental', demand: 'high' },
     { id: 'seminar', title: 'Research seminar', date: WEEK[1], start: 600, end: 720, kind: 'fixed', dimension: 'mental', demand: 'medium' },
+    { id: 'tutorial', title: 'Economics tutorial', date: WEEK[1], start: 840, end: 960, kind: 'fixed', dimension: 'mental', demand: 'medium' },
+    { id: 'data-lecture', title: 'Data analytics lecture', date: WEEK[2], start: 540, end: 660, kind: 'fixed', dimension: 'mental', demand: 'high' },
     { id: 'friend', title: 'Lunch with Mei', date: WEEK[2], start: 720, end: 780, kind: 'fixed', dimension: 'social', demand: 'low' },
+    { id: 'library-shift', title: 'Campus library shift', date: WEEK[3], start: 540, end: 660, kind: 'fixed', dimension: 'physical', demand: 'medium' },
     { id: 'gym', title: 'Gym session', date: WEEK[3], start: 960, end: 1050, kind: 'flexible', dimension: 'physical', demand: 'medium', moveWindows: [{ date: WEEK[6], start: 600, end: 690 }] },
+    { id: 'badminton', title: 'Badminton match with club', date: WEEK[5], start: 900, end: 1020, kind: 'fixed', dimension: 'physical', demand: 'medium' },
+    { id: 'dinner-friends', title: 'Dinner with friends', date: WEEK[5], start: 1140, end: 1320, kind: 'fixed', dimension: 'social', demand: 'medium' },
     { id: 'errand', title: 'Collect stationery', date: WEEK[2], start: 1080, end: 1140, kind: 'flexible', dimension: 'errands', demand: 'low', moveWindows: [{ date: WEEK[5], start: 600, end: 660 }] },
     ...WEEK.map((date, i): Commitment => ({ id: `sleep-${i}`, title: 'Protected sleep', date, start: 1320, end: 1440, kind: 'recovery', dimension: 'physical', demand: 'low' })),
   ];
