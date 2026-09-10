@@ -13,7 +13,7 @@ const base = makeDemo(true);
 const start = scoresOf(base);
 
 // Every score is derived from the sample week, not hardcoded in the UI.
-assert.deepEqual(start, { mental: 30, time: 49, physical: 72, social: 40, errands: 35 });
+assert.deepEqual(start, { mental: 51, time: 55, physical: 27, social: 40, errands: 35 });
 for (const load of loadScores(base)) {
   assert(load.score >= 0 && load.score <= 100, 'Scores stay within 0-100');
   assert.equal(load.tone, toneFor(load.score));
@@ -34,7 +34,7 @@ const plan = planWork(base, [task]).candidates[0];
 const withReport = reducer(base, { type: 'approve', plan });
 const loaded = scoresOf(withReport);
 assert.equal(loaded.mental, 73, '5h of focused work raises the mental branch');
-assert.equal(loaded.time, 76, 'The same work raises overall time pressure');
+assert.equal(loaded.time, 68, 'The same work raises overall time pressure');
 for (const id of ['physical', 'social', 'errands'] as Dimension[]) assert.equal(loaded[id], start[id], `${id} is untouched by a report`);
 assert.equal(dimensionLoad(withReport, 'mental').tone, 'moderate');
 
@@ -42,11 +42,11 @@ assert.equal(dimensionLoad(withReport, 'mental').tone, 'moderate');
 let done = withReport;
 for (const step of task.steps) done = reducer(done, { type: 'progress', taskId: task.id, stepId: step.id, remaining: 0 });
 assert.equal(remaining(done.tasks[0]), 0);
-assert.deepEqual(scoresOf(done), start, 'Completed work stops counting as load');
+assert.deepEqual(scoresOf(done), scoresOf({ ...base, tasks: [] }), 'Completed work stops counting as load');
 
 // Time is measured unweighted, so its contributor minutes are the raw week.
-assert.equal(dimensionLoad(base, 'time').minutes, 540);
-assert.equal(dimensionLoad(withReport, 'time').minutes, 840);
+assert.equal(dimensionLoad(base, 'time').minutes, 600);
+assert.equal(dimensionLoad(withReport, 'time').minutes, 750);
 
 // Deterministic capture: a report-shaped title seeds the prepared roadmap.
 const seeded = seedTask('Marketing report due Friday', 'report');

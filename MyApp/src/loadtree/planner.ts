@@ -1,4 +1,4 @@
-import { AppState, Block, Candidate, Commitment, PlanningResult, Task, Window, overlaps, remaining, stamp, taskErrors, dateLabel, duration } from './model';
+import { AppState, Block, Candidate, Commitment, PlanningResult, Task, Window, overlaps, remaining, stamp, taskErrors, dateLabel, duration, time } from './model';
 
 function slotsFor(state: AppState, commitments: Commitment[], task: Task): Window[] {
   const unique = new Map<string, Window>();
@@ -84,13 +84,16 @@ export function planWork(state: AppState, tasks = state.tasks): PlanningResult {
   const original = allocate(state, tasks, state.commitments);
   let bestShortfall = original.shortage;
   const result: PlanningResult = { candidates: [], required, available: required - original.shortage, shortfall: original.shortage };
-  function add(id: string, title: string, description: string, tradeOff: string, commitments: Commitment[], skipFirstDay = false, movedId?: string) {
+  function add(id: string, title: string, description: string, tradeOff: string, commitments: Commitment[], benefits: string[], costs: string[], skipFirstDay = false, movedId?: string) {
     const allocation = allocate(state, tasks, commitments, skipFirstDay);
     bestShortfall = Math.min(bestShortfall, allocation.shortage);
     if (allocation.shortage || validatePlan(state, tasks, commitments, allocation.blocks).length) return;
-    result.candidates.push({ id, title, description, tradeOff, commitments, blocks: allocation.blocks, tasks, sourceRevision: state.revision, movedId });
+    result.candidates.push({ id, title, description, tradeOff, benefits, costs, commitments, blocks: allocation.blocks, tasks, sourceRevision: state.revision, movedId });
   }
-  add('earlier', state.now.slice(0, 10) === '2026-09-07' ? 'Start on Monday' : 'Use your open study time', 'Keep every existing commitment in place. Spread the roadmap through your available study windows.', state.now.slice(0, 10) === '2026-09-07' ? 'Use Monday evening for a focused start.' : 'Your remaining study windows will be busier.', state.commitments);
+  add('earlier', 'Move the work earlier', 'Keep every existing commitment exactly where it is, and spread the remaining work through study time you already have free.',
+    'Your remaining study evenings get busier.', state.commitments,
+    ['Every commitment stays where it is', 'Protected sleep untouched'],
+    ['Less spare room before the deadline']);
   for (const event of state.commitments.filter(c => c.kind === 'flexible' && stamp(c) >= state.now)) {
     for (const destination of event.moveWindows || []) {
       const moved = { ...event, date: destination.date, start: destination.start, end: destination.start + event.end - event.start };
@@ -99,9 +102,11 @@ export function planWork(state: AppState, tasks = state.tasks): PlanningResult {
       const title = `Move ${event.title.toLowerCase()}`;
       const description = `Free ${duration(event.end - event.start)} on ${dateLabel(event.date)}. ${event.title} moves to ${dateLabel(moved.date)}.`;
       const trade = `Do the errand on ${dateLabel(moved.date)} instead. Its permitted window and your recovery stay intact.`;
+      const benefits = ['Your task keeps its current shape', 'Fixed commitments and protected sleep stay put'];
+      const costs = [`${event.title} moves to ${dateLabel(moved.date)}, ${time(moved.start)}`];
       const count = result.candidates.length;
-      if (count) add(`move-${event.id}`, title, description, trade, commitments, true, event.id);
-      if (result.candidates.length === count) add(`move-${event.id}`, title, description, trade, commitments, false, event.id);
+      if (count) add(`move-${event.id}`, title, description, trade, commitments, benefits, costs, true, event.id);
+      if (result.candidates.length === count) add(`move-${event.id}`, title, description, trade, commitments, benefits, costs, false, event.id);
       if (result.candidates.length >= 3) return result;
     }
   }

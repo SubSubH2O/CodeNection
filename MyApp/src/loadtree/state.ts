@@ -10,6 +10,8 @@ export type Action =
   | { type: 'setup'; preferences: Preferences; commitments: Commitment[] }
   | { type: 'progress'; taskId: string; stepId: string; remaining: number }
   | { type: 'delete'; taskId: string }
+  | { type: 'addCommitment'; commitment: Commitment }
+  | { type: 'removeCommitment'; id: string }
   | { type: 'advance' };
 
 export function setupErrors(preferences: Preferences, commitments: Commitment[]): string[] {
@@ -46,6 +48,16 @@ export function reducer(state: AppState, action: Action): AppState {
     const plan = action.plan;
     if (plan.sourceRevision !== state.revision || validatePlan(state, plan.tasks, plan.commitments, plan.blocks).length) return state;
     return updated({ tasks: plan.tasks, commitments: plan.commitments, blocks: plan.blocks, undo: snapshot(state) });
+  }
+  if (action.type === 'addCommitment') {
+    const next = [...state.commitments, action.commitment];
+    if (setupErrors(state.preferences, next).length) return state;
+    // A new fixed block can invalidate scheduled work, so clear future study blocks.
+    return updated({ commitments: next, blocks: state.blocks.filter(b => stamp(b) < state.now), undo: snapshot(state) });
+  }
+  if (action.type === 'removeCommitment') {
+    if (!state.commitments.some(c => c.id === action.id)) return state;
+    return updated({ commitments: state.commitments.filter(c => c.id !== action.id), undo: snapshot(state) });
   }
   if (action.type === 'delete') return updated({ tasks: state.tasks.filter(t => t.id !== action.taskId), blocks: state.blocks.filter(b => b.taskId !== action.taskId), undo: snapshot(state) });
   if (action.type === 'progress') {

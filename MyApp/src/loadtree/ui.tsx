@@ -37,7 +37,7 @@ const paths: Record<string, string> = {
   home: 'm3 10 9-7 9 7v10h-6v-7H9v7H3Z',
   calendar: 'M4 5h16v16H4ZM4 10h16M8 2v6M16 2v6M8 14h2M14 14h2M8 18h2',
   tasks: 'M9 5h12M9 12h12M9 19h12M2 5l2 2 3-4M2 12l2 2 3-4M2 19l2 2 3-4',
-  plus: 'M12 4v16M4 12h16', back: 'm14 5-7 7 7 7', close: 'm6 6 12 12M18 6 6 18',
+  plus: 'M12 4v16M4 12h16', back: 'm14 5-7 7 7 7', forward: 'm10 5 7 7-7 7', close: 'm6 6 12 12M18 6 6 18',
   check: 'm4 12 5 5L20 6', clock: 'M12 6v6l4 2', lock: 'M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5ZM12 14v3',
   arrow: 'M4 12h16m-6-6 6 6-6 6', settings: 'M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6',
   mental: 'M12 5.2A3.2 3.2 0 0 0 6.3 4 2.7 2.7 0 0 0 4.2 7.2 2.8 2.8 0 0 0 4 12a2.9 2.9 0 0 0 .8 4.5A3 3 0 0 0 9 19.4a2.7 2.7 0 0 0 3-2.2ZM12 5.2A3.2 3.2 0 0 1 17.7 4a2.7 2.7 0 0 1 2.1 3.2A2.8 2.8 0 0 1 20 12a2.9 2.9 0 0 1-.8 4.5A3 3 0 0 1 15 19.4a2.7 2.7 0 0 1-3-2.2Z',
@@ -50,6 +50,8 @@ const paths: Record<string, string> = {
   send: 'M4.4 11.9 20 4.5l-7.4 15.6-1.8-6.4-6.4-1.8Z',
   stop: 'M7.5 7.5h9v9h-9Z',
   doc: 'M13.5 3H6.5v18h11V7ZM13.5 3v4h4M9 12h6M9 16h4',
+  image: 'M4 5h16v14H4ZM4 15.5 9 11l4.5 4.5M13 14l2.5-2.5L20 16M15.5 8.5h.01',
+  camera: 'M4 8h3l1.6-2.2h6.8L17 8h3v11H4ZM12 16.2a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z',
 };
 export function Icon({ name, color = C.green, size = 22 }: { name: string; color?: string; size?: number }) {
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.65} strokeLinecap="round" strokeLinejoin="round">

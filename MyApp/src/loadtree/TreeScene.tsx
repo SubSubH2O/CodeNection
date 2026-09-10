@@ -17,12 +17,13 @@ const FOLIAGE: Record<Tone, { light: string; mid: string; dark: string }> = {
 type Cluster = { cx: number; cy: number; rx: number; ry: number; dot: { x: number; y: number }; side: 'left' | 'right' | 'top'; branch: string; taper: string };
 
 const CLUSTERS: Record<Dimension, Cluster> = {
-  mental: { cx: 160, cy: 74, rx: 43, ry: 37, dot: { x: 160, y: 34 }, side: 'top', branch: 'M160 150 C157 120 163 92 160 40', taper: 'M161 100 C163 78 159 58 160 40' },
-  time: { cx: 88, cy: 106, rx: 45, ry: 31, dot: { x: 44, y: 66 }, side: 'left', branch: 'M151 170 C130 158 92 122 48 70', taper: 'M98 124 C82 108 64 90 48 70' },
-  physical: { cx: 236, cy: 112, rx: 43, ry: 31, dot: { x: 278, y: 76 }, side: 'right', branch: 'M169 174 C192 162 232 130 274 80', taper: 'M226 134 C244 116 260 98 274 80' },
-  social: { cx: 78, cy: 184, rx: 46, ry: 33, dot: { x: 30, y: 166 }, side: 'left', branch: 'M147 202 C118 198 76 182 34 168', taper: 'M86 186 C68 180 50 174 34 168' },
-  errands: { cx: 244, cy: 186, rx: 44, ry: 33, dot: { x: 292, y: 170 }, side: 'right', branch: 'M175 204 C206 202 250 190 288 172', taper: 'M240 192 C258 186 274 178 288 172' },
+  mental: { cx: 160, cy: 64, rx: 40, ry: 33, dot: { x: 160, y: 34 }, side: 'top', branch: 'M160 152 C157 122 163 92 160 36', taper: 'M161 100 C163 76 159 54 160 36' },
+  time: { cx: 78, cy: 106, rx: 37, ry: 30, dot: { x: 44, y: 88 }, side: 'left', branch: 'M150 170 C128 156 86 126 46 90', taper: 'M98 128 C80 114 62 100 46 90' },
+  physical: { cx: 244, cy: 110, rx: 37, ry: 30, dot: { x: 278, y: 92 }, side: 'right', branch: 'M170 174 C194 160 236 130 276 94', taper: 'M224 132 C244 116 260 104 276 94' },
+  social: { cx: 66, cy: 194, rx: 37, ry: 30, dot: { x: 30, y: 188 }, side: 'left', branch: 'M146 206 C116 202 72 198 32 188', taper: 'M88 202 C68 197 50 192 32 188' },
+  errands: { cx: 256, cy: 196, rx: 37, ry: 30, dot: { x: 290, y: 190 }, side: 'right', branch: 'M174 208 C206 204 252 200 288 190', taper: 'M232 205 C252 200 270 195 288 190' },
 };
+
 
 const ORDERED: Dimension[] = ['social', 'errands', 'time', 'physical', 'mental'];
 
@@ -39,21 +40,51 @@ function mulberry32(seed: number) {
 const LEAF = 'M0 -16.5 C9.5 -11.5 12 -2 0 12.5 C-12 -2 -9.5 -11.5 0 -16.5 Z';
 const RIB = 'M0 9.5 L0 -14 M0 3 L-6 -2 M0 -2 L-6 -7 M0 -7 L-4 -11 M0 5 L6 0 M0 0 L6 -5 M0 -5 L4 -10';
 
-type Leaf = { x: number; y: number; r: number; s: number; shade: 0 | 1 | 2 };
-const LEAVES: Record<Dimension, Leaf[]> = ORDERED.reduce((all, id, index) => {
-  const cluster = CLUSTERS[id];
-  const random = mulberry32(1971 + index * 977);
-  const leaves: Leaf[] = [];
-  for (let i = 0; i < 22; i++) {
-    const angle = random() * Math.PI * 2;
-    const radius = Math.sqrt(random());
-    const x = cluster.cx + Math.cos(angle) * cluster.rx * radius;
-    const y = cluster.cy + Math.sin(angle) * cluster.ry * radius;
-    leaves.push({ x, y, r: (x - cluster.cx) * 2.2 + (random() - 0.5) * 44, s: 0.75 + random() * 0.35, shade: Math.floor(random() * 3) as 0 | 1 | 2 });
+type Blob = { x: number; y: number; rx: number; ry: number; deep: boolean };
+type Leaf = { x: number; y: number; r: number; s: number; light: boolean };
+type Twig = string;
+type Canopy = { blobs: Blob[]; leaves: Leaf[]; twigs: Twig[] };
+
+// A real canopy reads as one mass with leaves breaking its edge — not a scatter
+// of separate leaves. Built once from a fixed seed, so it never changes shape.
+const CANOPY: Record<Dimension, Canopy> = ORDERED.reduce((all, id, index) => {
+  const { cx, cy, rx, ry, dot } = CLUSTERS[id];
+  const random = mulberry32(4021 + index * 733);
+  const blobs: Blob[] = [];
+  for (let i = 0; i < 7; i++) {
+    const a = random() * Math.PI * 2;
+    const rad = 0.46 * Math.sqrt(random());
+    blobs.push({
+      x: cx + Math.cos(a) * rx * rad,
+      y: cy + Math.sin(a) * ry * rad,
+      rx: rx * (0.44 + random() * 0.18),
+      ry: ry * (0.5 + random() * 0.22),
+      deep: i < 3,
+    });
   }
-  all[id] = leaves.sort((a, b) => a.y - b.y);
+  const leaves: Leaf[] = [];
+  for (let i = 0; i < 38; i++) {
+    const a = random() * Math.PI * 2;
+    const rad = 0.48 + random() * 0.48;
+    const x = cx + Math.cos(a) * rx * rad;
+    const y = cy + Math.sin(a) * ry * rad;
+    leaves.push({
+      x, y,
+      // Leaves point away from the heart of the clump, the way real ones grow.
+      r: (a * 180) / Math.PI + 90 + (random() - 0.5) * 38,
+      s: 0.98 - (rad - 0.48) * 0.42 + random() * 0.13,
+      light: Math.cos(a) < 0.1 && Math.sin(a) < -0.1,
+    });
+  }
+  leaves.sort((a, b) => b.s - a.s);
+  const twigs: Twig[] = [];
+  for (let i = 0; i < 3; i++) {
+    const a = random() * Math.PI * 2;
+    twigs.push(`M${dot.x} ${dot.y} Q${(dot.x + cx) / 2} ${(dot.y + cy) / 2} ${cx + Math.cos(a) * rx * 0.6} ${cy + Math.sin(a) * ry * 0.6}`);
+  }
+  all[id] = { blobs, leaves, twigs };
   return all;
-}, {} as Record<Dimension, Leaf[]>);
+}, {} as Record<Dimension, Canopy>);
 
 export function TreeScene({ loads, selected, onSelect, bare = false }: { loads: DimensionLoad[]; selected?: Dimension; onSelect: (d: Dimension) => void; bare?: boolean }) {
   const [width, setWidth] = useState(340);
@@ -76,6 +107,7 @@ export function TreeScene({ loads, selected, onSelect, bare = false }: { loads: 
         <Path d="M0 237 Q65 205 146 246 Q230 209 320 229 V292 H0Z" fill="#C8DFC6" opacity={0.55} />
         <Path d="M0 264 Q90 233 175 268 Q260 240 320 257 V292 H0Z" fill="#BEDAB9" opacity={0.6} />
         <Ellipse cx={160} cy={269} rx={122} ry={14} fill="url(#grass)" />
+        <Ellipse cx={158} cy={267} rx={74} ry={10} fill="#3F6B45" opacity={0.22} />
 
         {/* branches, thick then tapered */}
         {ORDERED.map(id => (
@@ -90,17 +122,18 @@ export function TreeScene({ loads, selected, onSelect, bare = false }: { loads: 
         <Path d="M108 269 C140 255 146 225 146 194 C143 173 154 141 155 104 L164 60 C162 112 165 145 173 177 C182 207 169 250 210 269 L177 265 L160 272 L141 267Z" fill="url(#bark)" />
         <Path d="M124 265 C155 234 152 211 157 183 C165 144 151 135 162 89 M147 266 C164 231 162 210 166 195 M187 266 C168 239 177 217 170 182" stroke="#795431" strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={0.5} />
 
-        {/* foliage */}
+        {/* foliage: mass, then leaves breaking the silhouette */}
         {ORDERED.map(id => {
           const palette = FOLIAGE[toneOf(id)];
-          const shades = [palette.light, palette.mid, palette.dark];
+          const canopy = CANOPY[id];
           return (
             <G key={`l-${id}`}>
-              {LEAVES[id].map((leaf, i) => <Path key={`stem-${i}`} d={`M${CLUSTERS[id].cx} ${CLUSTERS[id].cy + 20} Q${leaf.x} ${CLUSTERS[id].cy + 8} ${leaf.x} ${leaf.y + 8}`} stroke="#79905A" strokeWidth={1.1} fill="none" opacity={0.65} />)}
-              {LEAVES[id].map((leaf, i) => (
+              {canopy.twigs.map((d, i) => <Path key={`t-${i}`} d={d} stroke="#8A6039" strokeWidth={2.2} fill="none" strokeLinecap="round" opacity={0.75} />)}
+              {canopy.blobs.map((b, i) => <Ellipse key={`b-${i}`} cx={b.x} cy={b.y} rx={b.rx} ry={b.ry} fill={b.deep ? palette.dark : palette.mid} opacity={b.deep ? 0.92 : 0.96} />)}
+              {canopy.leaves.map((leaf, i) => (
                 <G key={i} transform={`translate(${leaf.x} ${leaf.y}) rotate(${leaf.r}) scale(${leaf.s})`}>
-                  <Path d={LEAF} fill={leaf.shade === 1 ? shades[leaf.shade] : `url(#leaf-${id})`} />
-                  <Path d={RIB} stroke={palette.dark} strokeWidth={0.7} fill="none" opacity={0.55} strokeLinecap="round" />
+                  <Path d={LEAF} fill={leaf.light ? palette.light : `url(#leaf-${id})`} />
+                  <Path d={RIB} stroke={palette.dark} strokeWidth={0.7} fill="none" opacity={0.4} strokeLinecap="round" />
                 </G>
               ))}
             </G>

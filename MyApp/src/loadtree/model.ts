@@ -39,6 +39,9 @@ export interface Candidate {
   title: string;
   description: string;
   tradeOff: string;
+  /** Concrete consequences, one line each — never vague balance language. */
+  benefits: string[];
+  costs: string[];
   commitments: Commitment[];
   blocks: Block[];
   tasks: Task[];

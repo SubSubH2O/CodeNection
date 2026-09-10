@@ -1,21 +1,26 @@
 import React, { useEffect, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, BackHandler, KeyboardAvoidingView, LayoutAnimation, Platform, Pressable, TextInput, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, LayoutAnimation, Platform, Pressable, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LoadTreeProvider, useLoadTree } from './store';
-import { Candidate, Dimension, Task, WEEK, dateLabel, duration, remaining, stamp, time } from './model';
+import { Candidate, Commitment, Dimension, Task, WEEK, dateLabel, duration, remaining, stamp, time } from './model';
 import { seedTask } from './demo';
-import { Avatar, C, Button, Chip, Glass, Icon, LIFT_SHADOW, Meter, Notice, Page, S, Segmented, Sheet, SOFT_SHADOW, SplitBar, TONE, Title, Txt } from './ui';
-import { ICON, dimensionLoad, loadScores, summarise } from './load';
+import { Avatar, C, Button, Chip, Glass, Icon, LIFT_SHADOW, Notice, Page, S, Segmented, Sheet, SOFT_SHADOW, Title, Txt } from './ui';
+import { dimensionLoad, loadScores, summarise } from './load';
 import { HeroScene } from './HeroScene';
 import { TreeScene } from './TreeScene';
-import { Capture, InputBar } from './InputBar';
+import { Capture, InputBar, useKeyboardInset } from './InputBar';
+import { ChatScreen, useChat } from './ChatScreen';
+import { Conflict, conflictOptions, findConflict, parseInput } from './conflict';
+import { ConflictSheet } from './ConflictSheet';
+import { CompareScreen } from './CompareScreen';
+import { NewEventSheet } from './NewEventSheet';
 import { Setup } from './Setup';
-import { DayTimeline, MonthGrid, changesOn, planChanges } from './Calendar';
+import { DayTimeline, MonthGrid, WeekStrip, changesOn, planChanges } from './Calendar';
 import { Comparison, Progress, TaskEditor } from './TaskFlow';
 import { futureCoverage, validatePlan } from './planner';
 
-type Tab = 'home' | 'calendar';
+type Tab = 'home' | 'calendar' | 'chat' | 'compare';
 type Overlay =
   | { type: 'setup' | 'settings' | 'reset' | 'advance' }
   | { type: 'editor'; task?: Task; seed?: Task }
@@ -24,6 +29,9 @@ type Overlay =
   | { type: 'detail'; id: string }
   | { type: 'progress'; id: string; stepId: string }
   | { type: 'delete'; id: string }
+  | { type: 'newEvent'; start: number }
+  | { type: 'editEvent'; id: string }
+  | { type: 'conflict'; conflict: Conflict }
   | null;
 
 function Application() {
@@ -37,6 +45,10 @@ function Application() {
   const [completedFilter, setCompletedFilter] = useState(false);
   const [pending, setPending] = useState<Candidate | null>(null);
   const [previewing, setPreviewing] = useState(true);
+  const [monthOpen, setMonthOpen] = useState(false);
+  const [compare, setCompare] = useState<{ conflict: Conflict; options: Candidate[] } | null>(null);
+  const keyboard = useKeyboardInset();
+  const chat = useChat();
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -46,12 +58,14 @@ function Application() {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (overlay) { setOverlay(null); return true; }
+      if (tab === 'compare') { setCompare(null); setTab('calendar'); return true; }
+      if (tab === 'chat') { setTab('home'); return true; }
       if (pending) { setPending(null); return true; }
       if (tab !== 'home') { setTab('home'); return true; }
       return false;
     });
     return () => subscription.remove();
-  }, [tab, overlay, pending]);
+  }, [tab, overlay, pending, compare]);
   useEffect(() => { if (!toast) return; const timeout = setTimeout(() => setToast(''), 6000); return () => clearTimeout(timeout); }, [toast]);
 
   const close = () => setOverlay(null);
@@ -66,6 +80,7 @@ function Application() {
   const detailTask = overlay && (overlay.type === 'detail' || overlay.type === 'progress' || overlay.type === 'delete') ? state.tasks.find(t => t.id === overlay.id) : undefined;
   const stale = !!pending && (pending.sourceRevision !== state.revision || validatePlan(state, pending.tasks, pending.commitments, pending.blocks).length > 0);
   const changes = planChanges(state, pending);
+  const blankChanges = { added: [], removed: [], moved: [], total: 0, days: new Set<string>() };
   const shownPlan = previewing && !stale ? pending : null;
   const undo = () => { dispatch({ type: 'undo' }); setToast('Previous state restored.'); };
   const discard = () => { setPending(null); setPreviewing(true); setToast('Proposed changes discarded. Your calendar is unchanged.'); };
@@ -78,14 +93,37 @@ function Application() {
     setToast('Plan approved. Your calendar and next step are ready.');
   };
   const startPlan = (c: Capture) => {
-    const seed = seedTask(c.title || 'Untitled task');
-    setOverlay({ type: 'editor', seed: c.title ? seed : { ...seed, title: '', steps: [] } });
-    if (c.note) setToast(`${c.note}. Give it a title and check how it fits.`);
+    const text = c.title || c.note || '';
+    const parsed = parseInput(text, state);
+    if (parsed.commitment) {
+      setDay(parsed.commitment.date);
+      setTab('calendar');
+      setOverlay({ type: 'conflict', conflict: findConflict(state, parsed.commitment) });
+      return;
+    }
+    setTab('chat');
+    chat.send(state, text || 'I have something to plan');
+  };
+  const openCompare = (conflict: Conflict) => {
+    setCompare({ conflict, options: conflictOptions(state, conflict) });
+    close();
+    setTab('compare');
+  };
+  const previewOption = (option: Candidate) => {
+    if (option.id === 'keep') { setCompare(null); setTab('calendar'); setToast('Nothing changed. Your week is as it was.'); return; }
+    setPending(option);
+    setPreviewing(true);
+    setDay([...planChanges(state, option).days].sort()[0] || state.now.slice(0, 10));
+    setCompare(null);
+    setTab('calendar');
+  };
+  const previewFromChat = (plan: Candidate) => {
+    setPending(plan);
+    setPreviewing(true);
+    setDay([...planChanges(state, plan).days].sort()[0] || state.now.slice(0, 10));
+    setTab('calendar');
   };
   const weekLabel = `${dateLabel(WEEK[0])} – ${dateLabel(WEEK[6])}`;
-  const busyMinutes = state.commitments.filter(c => c.kind !== 'recovery' && stamp(c, true) > state.now).reduce((sum, c) => sum + c.end - c.start, 0);
-  const restMinutes = state.commitments.filter(c => c.kind === 'recovery' && stamp(c, true) > state.now).reduce((sum, c) => sum + c.end - c.start, 0);
-  const openMinutes = Math.max(0, state.preferences.availability.reduce((sum, w) => sum + w.end - w.start, 0) - coverage);
 
   if (!ready) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 }}><ActivityIndicator color={C.green} /><Txt>Opening your week…</Txt></View>;
 
@@ -99,7 +137,7 @@ function Application() {
           <Avatar size={42} />
         </Pressable>
       </View>
-      {state.setupDone && <Segmented value={tab} onChange={setTab} options={[{ id: 'home', label: 'Tree' }, { id: 'calendar', label: 'Calendar' }]} />}
+      {state.setupDone && tab !== 'chat' && tab !== 'compare' && <Segmented value={tab === 'calendar' ? 'calendar' : 'home'} onChange={setTab} options={[{ id: 'home', label: 'Tree' }, { id: 'calendar', label: 'Calendar' }]} />}
     </View>
 
     {!state.setupDone ? <Page>
@@ -110,7 +148,11 @@ function Application() {
         <Button kind="quiet" onPress={() => { dispatch({ type: 'reset', empty: true }); setOverlay({ type: 'setup' }); }}>Set up my own week</Button>
         <Txt muted style={{ fontSize: 12, textAlign: 'center' }}>Saved on this device · no account needed</Txt>
       </View>
-    </Page> : <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    </Page> : <View style={{ flex: 1, paddingBottom: keyboard }}>
+
+      {tab === 'compare' && compare && <CompareScreen conflict={compare.conflict} options={compare.options} onBack={() => { setCompare(null); setTab('calendar'); }} onPreview={previewOption} />}
+
+      {tab === 'chat' && <ChatScreen state={state} chat={chat} onClose={() => setTab('home')} onPlan={plan => previewFromChat(plan)} />}
 
       {tab === 'home' && <Page>
         <HeroScene loads={loads} selected={dimension} onSelect={d => { setDimension(d); setOverlay({ type: 'dimension', dim: d }); }} greeting={`Hello, ${state.preferences.name || 'there'}`} week={weekLabel} />
@@ -121,17 +163,6 @@ function Application() {
           <Pressable accessibilityRole="button" onPress={() => setOverlay({ type: 'compare' })} style={{ minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 12, backgroundColor: C.white }}><Txt style={{ fontSize: 13, fontWeight: '700', color: C.amber }}>Find room</Txt></Pressable>
         </View>}
 
-        <View style={[S.card, { gap: 2, padding: 16 }]}>
-          <View style={[S.between, { marginBottom: 8 }]}><Txt accessibilityRole="header" style={{ fontSize: 22, lineHeight: 29, fontWeight: '700', letterSpacing: -0.5, color: C.green }}>This week</Txt><Txt muted style={{ fontSize: 11 }}>Load / 100</Txt></View>
-          {loads.map((load, i) => <Pressable key={load.id} accessibilityRole="button" accessibilityLabel={`${load.label}, ${load.score} out of 100`} onPress={() => { setDimension(load.id); setOverlay({ type: 'dimension', dim: load.id }); }} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 54, paddingVertical: 9, borderBottomWidth: i === loads.length - 1 ? 0 : 1, borderColor: '#EFF4F1', opacity: pressed ? 0.65 : 1 })}>
-            <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: C.tealBg, alignItems: 'center', justifyContent: 'center' }}><Icon name={ICON[load.id]} size={19} /></View>
-            <Txt style={{ width: 61, fontSize: 13, fontWeight: '500' }}>{load.label}</Txt>
-            <Meter value={load.score} color={TONE[load.tone]} />
-            <View style={{ width: 32, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'flex-end' }}>
-              <Txt style={{ fontSize: 19, fontWeight: '700', color: load.tone === 'calm' ? C.green : C.amber }}>{load.score}</Txt>
-            </View>
-          </Pressable>)}
-        </View>
 
         {nextTask && nextStep && <Pressable accessibilityRole="button" accessibilityLabel={`Next step: ${nextStep.title}`} onPress={() => setOverlay(needsPlan ? { type: 'compare' } : { type: 'progress', id: nextTask.id, stepId: nextStep.id })} style={{ backgroundColor: C.green, padding: 20, borderRadius: 20, gap: 8 }}>
           <View style={S.between}><Txt style={{ color: '#D0E8DC', fontSize: 13, fontWeight: '600' }}>Your next small step</Txt><Icon name="arrow" color="#B9D2C1" size={19} /></View>
@@ -139,15 +170,6 @@ function Application() {
           <Txt style={{ color: '#B9D2C1', fontSize: 13 }}>{duration(nextStep.remaining)} · {nextTask.title}</Txt>
         </Pressable>}
 
-
-        <View style={[S.card, { padding: 16, gap: 10 }]}>
-          <View style={S.between}><Txt style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>Where your week goes</Txt><Txt muted style={{ fontSize: 11 }}>from here on</Txt></View>
-          <SplitBar parts={[{ key: 'busy', value: busyMinutes, color: C.green }, { key: 'study', value: coverage, color: C.moss }, { key: 'rest', value: restMinutes, color: C.teal }, { key: 'open', value: openMinutes, color: C.track }]} />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-            {[{ l: 'Commitments', v: busyMinutes, c: C.green }, { l: 'Study', v: coverage, c: C.moss }, { l: 'Recovery', v: restMinutes, c: C.teal }, { l: 'Open', v: openMinutes, c: '#C4D3CB' }].map(x =>
-              <View key={x.l} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: x.c }} /><Txt muted style={{ fontSize: 11.5 }}>{x.l} {duration(x.v)}</Txt></View>)}
-          </View>
-        </View>
 
         {state.tasks.length > 0 && <View style={{ gap: 10 }}>
           <View style={S.between}>
@@ -167,20 +189,23 @@ function Application() {
 
       {tab === 'calendar' && <Page>
         <View style={[S.between, { flexWrap: 'wrap' }]}>
-          <View style={{ flex: 1, minWidth: 160 }}>
-            <Txt accessibilityRole="header" numberOfLines={1} style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, color: C.green }}>{new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</Txt>
-            <Txt muted style={{ fontSize: 13 }}>{changes.total ? `${changes.total} proposed ${changes.total === 1 ? 'change' : 'changes'}` : 'Nothing pending'}</Txt>
+          <View style={{ flex: 1, minWidth: 150 }}>
+            <Txt accessibilityRole="header" numberOfLines={1} style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, color: C.green }}>{dateLabel(day, true)}</Txt>
+            <Txt muted style={{ fontSize: 13 }}>{shownPlan && changesOn(changes, day) > 0 ? `${changesOn(changes, day)} ${changesOn(changes, day) === 1 ? 'change' : 'changes'} here` : new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</Txt>
           </View>
-          {pending && !stale && <Segmented compact accent={C.flag} value={previewing ? 'preview' : 'current'} onChange={v => setPreviewing(v === 'preview')} options={[{ id: 'current', label: 'Current' }, { id: 'preview', label: 'Preview' }]} />}
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: monthOpen }} accessibilityLabel={monthOpen ? 'Show one week' : 'Show the whole month'} onPress={() => setMonthOpen(!monthOpen)}
+            style={{ minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 14, backgroundColor: C.sage }}>
+            <Txt style={{ fontSize: 13, fontWeight: '700', color: C.green }}>{monthOpen ? 'Week' : 'Month'}</Txt>
+          </Pressable>
         </View>
-        <MonthGrid state={shownPlan ? { ...state, tasks: shownPlan.tasks } : state} selected={day} onSelect={setDay} changes={shownPlan ? changes : { added: [], moved: [], total: 0, days: new Set() }} />
-        <View style={{ height: 1, backgroundColor: C.line }} />
-        <View>
-          <Txt accessibilityRole="header" style={{ fontSize: 21, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4, color: C.green }}>{dateLabel(day, true)}</Txt>
-          {shownPlan && changesOn(changes, day) > 0 && <Txt muted style={{ fontSize: 13 }}>{changesOn(changes, day)} {changesOn(changes, day) === 1 ? 'change' : 'changes'} here</Txt>}
-        </View>
+
+        {monthOpen
+          ? <MonthGrid state={shownPlan ? { ...state, tasks: shownPlan.tasks } : state} selected={day} onSelect={setDay} changes={shownPlan ? changes : blankChanges} />
+          : <WeekStrip state={shownPlan ? { ...state, tasks: shownPlan.tasks } : state} selected={day} onSelect={setDay} changes={shownPlan ? changes : blankChanges} />}
+
         {stale && <Notice tone="amber">Your week changed, so this proposal no longer fits. Review the options again.</Notice>}
-        <DayTimeline state={state} date={day} plan={shownPlan} onTask={id => setOverlay({ type: 'detail', id })} />
+        <DayTimeline state={state} date={day} plan={shownPlan} onTask={id => setOverlay({ type: 'detail', id })} onSlot={minutes => setOverlay({ type: 'newEvent', start: minutes })} onEvent={id => setOverlay({ type: 'editEvent', id })} />
+        <Txt muted style={{ fontSize: 12, textAlign: 'center' }}>Tap any empty time to add something yourself.</Txt>
         {needsPlan && !pending && <Button onPress={() => setOverlay({ type: 'compare' })}>Review a new plan</Button>}
         <Button kind="quiet" onPress={() => setOverlay({ type: 'setup' })}>Edit weekly setup</Button>
       </Page>}
@@ -190,22 +215,23 @@ function Application() {
         {state.undo && <Pressable accessibilityRole="button" accessibilityLabel="Undo last change" onPress={undo} style={{ paddingVertical: 8 }}><Txt style={{ fontSize: 13, fontWeight: '700' }}>Undo</Txt></Pressable>}
       </View>}
 
-      {pending && <View style={{ marginHorizontal: 12, paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, backgroundColor: C.white, borderRadius: 22, borderWidth: 1, borderColor: C.line, ...SOFT_SHADOW }}>
-        <View style={[S.row, { flexGrow: 1, flexBasis: 140 }]}>
-        <Icon name="calendar" size={24} color={stale ? C.amber : C.green} />
-        <View style={{ flex: 1 }}>
-          <Txt style={{ fontSize: 14.5, fontWeight: '700' }}>{stale ? 'Proposal out of date' : `${changes.total} ${changes.total === 1 ? 'change' : 'changes'} ready`}</Txt>
-          <Txt muted style={{ fontSize: 12 }}>{stale ? 'Review the options again.' : 'Nothing is saved yet.'}</Txt>
+      {pending && <View style={{ marginHorizontal: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10, backgroundColor: C.white, borderRadius: 22, borderWidth: 1, borderColor: C.line, ...SOFT_SHADOW }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Icon name="calendar" size={24} color={stale ? C.amber : C.green} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Txt numberOfLines={1} style={{ fontSize: 14.5, fontWeight: '700' }}>{stale ? 'Proposal out of date' : pending.title}</Txt>
+            <Txt numberOfLines={1} muted style={{ fontSize: 12 }}>{stale ? 'Review the options again.' : `${changes.total} ${changes.total === 1 ? 'change' : 'changes'} · nothing saved yet`}</Txt>
+          </View>
+          {!stale && <Segmented compact accent={C.flag} value={previewing ? 'preview' : 'current'} onChange={v => setPreviewing(v === 'preview')} options={[{ id: 'current', label: 'Now' }, { id: 'preview', label: 'Preview' }]} />}
         </View>
-        </View>
-        <View style={{ flexDirection: 'row', flexGrow: 1, flexBasis: 166, gap: 8 }}>
-        <Pressable accessibilityRole="button" onPress={discard} style={{ flex: 1, minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: C.line }}><Txt style={{ fontSize: 13.5, fontWeight: '600' }}>Discard</Txt></Pressable>
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: stale }} disabled={stale} onPress={approve} style={{ flex: 1, minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: C.green, opacity: stale ? 0.45 : 1 }}><Txt style={{ fontSize: 13.5, fontWeight: '700', color: C.white }}>Approve</Txt></Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable accessibilityRole="button" onPress={discard} style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: C.line }}><Txt style={{ fontSize: 13.5, fontWeight: '600' }}>Cancel</Txt></Pressable>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: stale }} disabled={stale} onPress={approve} style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: C.green, opacity: stale ? 0.45 : 1 }}><Txt style={{ fontSize: 13.5, fontWeight: '700', color: C.white }}>Apply plan</Txt></Pressable>
         </View>
       </View>}
 
-      <InputBar onCapture={startPlan} onManual={() => setOverlay({ type: 'editor' })} onNotice={setToast} />
-    </KeyboardAvoidingView>}
+      {tab !== 'compare' && <InputBar mode={tab === 'chat' ? 'full' : 'launcher'} hasHistory={chat.messages.length > 1} onOpen={() => setTab('chat')} onCapture={startPlan} onNotice={setToast} />}
+    </View>}
 
     {overlay?.type === 'dimension' && (() => {
       const load = dimensionLoad(state, overlay.dim);
@@ -214,6 +240,27 @@ function Application() {
         {!load.contributors.length && <Txt muted>Nothing is scheduled in this area for the rest of the week.</Txt>}
         <Txt muted style={{ fontSize: 12 }}>A reference load for the week, from what you entered. Not a health measurement.</Txt>
       </Sheet>;
+    })()}
+    {overlay?.type === 'conflict' && <ConflictSheet conflict={overlay.conflict} onClose={close}
+      onOptions={() => openCompare(overlay.conflict)}
+      onAddAnyway={() => { dispatch({ type: 'addCommitment', commitment: overlay.conflict.commitment }); close(); setToast(`${overlay.conflict.commitment.title} added.`); }} />}
+    {overlay?.type === 'newEvent' && <NewEventSheet date={day} start={overlay.start} onClose={close} onAdd={commitment => {
+      dispatch({ type: 'addCommitment', commitment });
+      close();
+      setToast(`${commitment.title} added. Future study blocks cleared — review a new plan.`);
+    }} />}
+    {overlay?.type === 'editEvent' && (() => {
+      const existing = state.commitments.find(c => c.id === overlay.id);
+      if (!existing) return null;
+      return <NewEventSheet date={existing.date} start={existing.start} existing={existing} onClose={close}
+        onAdd={commitment => {
+          // Replace in place: remove then re-add, so the overlap checks still run.
+          dispatch({ type: 'removeCommitment', id: existing.id });
+          dispatch({ type: 'addCommitment', commitment });
+          close();
+          setToast(`${commitment.title} updated.`);
+        }}
+        onDelete={id => { dispatch({ type: 'removeCommitment', id }); close(); setToast(`${existing.title} removed. You can undo this.`); }} />;
     })()}
     {overlay?.type === 'setup' && <Setup state={state} onClose={close} onSave={(preferences, commitments) => { dispatch({ type: 'setup', preferences, commitments }); close(); setToast('Weekly setup saved.'); }} />}
     {overlay?.type === 'editor' && <TaskEditor initial={overlay.task} seed={overlay.seed} onClose={close} onPlan={draft => setOverlay({ type: 'compare', draft })} />}
