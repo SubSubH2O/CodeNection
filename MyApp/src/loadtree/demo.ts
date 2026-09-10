@@ -77,6 +77,59 @@ export function seedTask(input: string, id = `task-${Date.now()}`): Task {
   return { id, title, demand: 'high', deadline: `${WEEK[4]}T12:00`, steps: [] };
 }
 export function emptyWeek(): AppState {
-  const demo = makeDemo();
-  return { ...demo, preferences: { ...demo.preferences, name: '', availability: [] }, commitments: [], tasks: [], blocks: [] };
+  const demo = makeDemo(false);
+  // Default overnight sleep: 11:00 PM to 7:00 AM (8h across all 7 days)
+  const baselineSleep: Commitment[] = [];
+  WEEK.forEach(date => {
+    const nextDate = WEEK[(WEEK.indexOf(date) + 1) % WEEK.length];
+    baselineSleep.push({
+      id: `sleep-${date}-eve`,
+      title: 'Protected sleep',
+      date,
+      start: 1380,
+      end: 1440,
+      kind: 'recovery',
+      dimension: 'physical',
+      demand: 'low',
+    });
+    baselineSleep.push({
+      id: `sleep-${nextDate}-morn`,
+      title: 'Protected sleep',
+      date: nextDate,
+      start: 0,
+      end: 420,
+      kind: 'recovery',
+      dimension: 'physical',
+      demand: 'low',
+    });
+  });
+  const baselineFree: Commitment[] = WEEK.map((date, i) => ({
+    id: `free-${i}`,
+    title: 'Protected free time',
+    date,
+    start: 1080,
+    end: 1200,
+    kind: 'recovery',
+    dimension: 'social',
+    demand: 'low',
+  }));
+  const baselineStudy = WEEK.slice(0, 5).map(date => ({
+    date,
+    start: 480,
+    end: 960,
+  }));
+  return {
+    ...demo,
+    setupDone: false,
+    preferences: {
+      ...demo.preferences,
+      name: 'Student',
+      dailyLimit: 240,
+      avoidAfterShift: true,
+      availability: baselineStudy,
+    },
+    commitments: [...baselineFree, ...baselineSleep],
+    tasks: [],
+    blocks: [],
+  };
 }

@@ -54,6 +54,15 @@ export const time = (minutes: number) => `${String(Math.floor(minutes / 60)).pad
 export const stamp = (w: Window, end = false) => `${w.date}T${time(end ? w.end : w.start)}`;
 export const duration = (minutes: number) => minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;
 export const dateLabel = (date: string, long = false) => new Date(`${date.slice(0, 10)}T12:00:00`).toLocaleDateString('en-GB', { weekday: long ? 'long' : 'short', day: 'numeric', month: 'short' });
+export const weekday = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short' });
+/** "Every day", "Weekdays", or "Mon, Wed". */
+export function daysLabel(days: string[]): string {
+  const sorted = WEEK.filter(d => days.includes(d));
+  if (sorted.length === 7) return 'Every day';
+  if (sorted.length === 5 && sorted.every(d => WEEK.indexOf(d) < 5)) return 'Weekdays';
+  if (sorted.length === 2 && sorted.every(d => WEEK.indexOf(d) >= 5)) return 'Weekends';
+  return sorted.map(weekday).join(', ');
+}
 export const remaining = (task: Task) => task.steps.reduce((sum, step) => sum + step.remaining, 0);
 export const overlaps = (a: Window, b: Window) => a.date === b.date && a.start < b.end && b.start < a.end;
 export function validDate(value: string): boolean {

@@ -142,11 +142,12 @@ function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[
   const saved = new Set([...state.commitments, ...state.blocks].map(key));
   let rows: Row[] = [];
   for (const c of commitments.filter(c => c.date === date)) {
+    if (c.kind === 'recovery') continue;
     const before = state.commitments.find(x => x.id === c.id);
     const movedHere = !!plan && !!before && (before.date !== c.date || before.start !== c.start);
     rows.push({
       id: c.id, title: c.title, start: c.start, end: c.end,
-      look: c.kind === 'recovery' ? 'recovery' : 'commitment',
+      look: 'commitment',
       status: movedHere ? 'moved' : !before && plan ? 'new' : 'saved',
       note: movedHere && before ? `from ${before.date === c.date ? '' : `${dateLabel(before.date)}, `}${clock(before.start)} ${meridiem(before.start)}` : undefined,
       lane: 0, lanes: 1, dim: c.dimension,
@@ -162,6 +163,7 @@ function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[
   }
   if (plan) {
     for (const before of state.commitments) {
+      if (before.kind === 'recovery') continue;
       const after = plan.commitments.find(c => c.id === before.id);
       if (!after || before.date !== date) continue;
       if (after.date === before.date && after.start === before.start) continue;

@@ -37,6 +37,7 @@ const testFiles = [
   './src/loadtree/calendarDates.test.ts',
   './src/loadtree/conflict.test.ts',
   './src/loadtree/flow.test.ts',
+  './src/loadtree/weeklySetup.test.ts',
 ];
 
 let failed = false;

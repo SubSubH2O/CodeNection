@@ -15,7 +15,8 @@ import { Conflict } from './conflict';
 import { OptionsPanel } from './OptionsPanel';
 import { TaskSpine } from './TaskSpine';
 import { RoutineEditor, commitmentsFor, groupCommitments, routineOf } from './RoutineEditor';
-import { Setup } from './Setup';
+import { TimeBlocks } from './TimeBlocks';
+import { WeeklyEventsSheet } from './WeeklyEvents';
 import { DayTimeline, MonthGrid, WeekStrip, changesOn, planChanges } from './Calendar';
 import { Progress, TaskEditor } from './TaskFlow';
 import { futureCoverage, validatePlan } from './planner';
@@ -25,7 +26,7 @@ import { Outcome, appliedSummary, planRequest, replan } from './flow';
 
 type Tab = 'home' | 'calendar' | 'chat';
 type Overlay =
-  | { type: 'setup' | 'settings' | 'reset' | 'advance' }
+  | { type: 'setup' | 'settings' | 'reset' | 'advance' | 'weeklyEvents' }
   | { type: 'editor'; task?: Task; seed?: Task; fromChat?: boolean }
   | { type: 'compare'; draft?: Task }
   | { type: 'dimension'; dim: Dimension }
@@ -82,6 +83,13 @@ function Application() {
     return () => listener.remove();
   }, []);
   useEffect(() => { if (!toast) return; const timeout = setTimeout(() => setToast(''), 6000); return () => clearTimeout(timeout); }, [toast]);
+
+  // First time launch: prompt the user for time blocks once
+  useEffect(() => {
+    if (ready && !state.setupDone && stack.length === 0) {
+      setOverlay({ type: 'setup' });
+    }
+  }, [ready, state.setupDone]);
 
   const close = () => setStack(prev => prev.slice(0, -1));
   const loads = loadScores(state);
@@ -211,11 +219,15 @@ function Application() {
     </View>
 
     {!state.setupDone ? <Page>
-      <View style={{ gap: 10 }}><Chip>Your week, with breathing room</Chip><Title>A little space to grow.</Title><Txt muted>See what you’re carrying, then make a plan that leaves room for you.</Txt></View>
+      <View style={{ gap: 10 }}>
+        <Chip>Welcome to LoadTree</Chip>
+        <Title>Set up your time blocks</Title>
+        <Txt muted>Configure your Study, Free, and Sleep time blocks once. LoadTree protects your free time and reschedules your study cleanly.</Txt>
+      </View>
       <TreeScene loads={loads} selected={dimension} onSelect={setDimension} height={360} />
       <View style={{ gap: 10 }}>
-        <Button icon="leaf" onPress={() => { dispatch({ type: 'reset' }); setToast('Alex’s week is ready. Tap the box below to plan something.'); }}>Try Alex’s sample week</Button>
-        <Button kind="quiet" onPress={() => { dispatch({ type: 'reset', empty: true }); setOverlay({ type: 'setup' }); }}>Set up my own week</Button>
+        <Button icon="calendar" onPress={() => setOverlay({ type: 'setup' })}>Configure my time blocks</Button>
+        <Button kind="quiet" onPress={() => { dispatch({ type: 'reset' }); setToast('Alex’s sample week loaded.'); }}>Or explore sample student week</Button>
       </View>
     </Page> : <View style={{ flex: 1, paddingBottom: keyboard }}>
 
@@ -233,8 +245,13 @@ function Application() {
               <Txt accessibilityRole="header" numberOfLines={1} style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, color: C.green }}>{dateLabel(day, true)}</Txt>
               <Txt muted style={{ fontSize: 13 }}>{shownPlan && changesOn(changes, day) > 0 ? `${changesOn(changes, day)} ${changesOn(changes, day) === 1 ? 'change' : 'changes'} here` : new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</Txt>
             </View>
-            {/* Weekly setup sits with the calendar it shapes: an icon beside the view switch. */}
-            {!compare && <Pressable accessibilityRole="button" accessibilityLabel="Weekly setup" onPress={() => setOverlay({ type: 'setup' })}
+            {/* Events this week sits beside weekly setup */}
+            {!compare && <Pressable accessibilityRole="button" accessibilityLabel="Events this week" onPress={() => setOverlay({ type: 'weeklyEvents' })}
+              style={{ width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.sage }}>
+              <Icon name="calendar" size={19} />
+            </Pressable>}
+            {/* Time Blocks sits with the calendar it shapes: an icon beside the view switch. */}
+            {!compare && <Pressable accessibilityRole="button" accessibilityLabel="Time Blocks" onPress={() => setOverlay({ type: 'setup' })}
               style={{ width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.sage }}>
               <Icon name="settings" size={19} />
             </Pressable>}
@@ -318,12 +335,13 @@ function Application() {
         }}
         onDelete={() => { dispatch({ type: 'replaceCommitments', remove, add: [] }); close(); setToast(`${existing.title} deleted.`); }} />;
     })()}
-    {overlay?.type === 'setup' && <Setup state={state} onClose={close} onSave={(preferences, commitments) => { dispatch({ type: 'setup', preferences, commitments }); close(); setToast('Weekly setup saved.'); }} />}
+    {overlay?.type === 'setup' && <TimeBlocks state={state} onClose={close} onSave={(preferences, commitments) => { dispatch({ type: 'setup', preferences, commitments }); close(); setToast('Time blocks saved.'); }} />}
+    {overlay?.type === 'weeklyEvents' && <WeeklyEventsSheet commitments={state.commitments} onClose={close} onNewEvent={_d => setOverlay({ type: 'newEvent', start: 540 })} onEditEvent={id => setOverlay({ type: 'editEvent', id })} />}
     {overlay?.type === 'editor' && <TaskEditor initial={overlay.task} seed={overlay.seed} onClose={close} onPlan={overlay.fromChat ? task => { chat.revise(state, task); close(); } : beginTaskPlan} />}
     {overlay?.type === 'noFit' && <Sheet title="No complete plan fits" onClose={close}>
       <Notice tone="amber">{duration(overlay.shortfall)} still needs a study window.</Notice>
       {overlay.task && <Button onPress={() => setOverlay({ type: 'editor', task: overlay.task })}>Edit task</Button>}
-      <Button kind="outline" onPress={() => setOverlay({ type: 'setup' })}>Edit study windows</Button>
+      <Button kind="outline" onPress={() => setOverlay({ type: 'setup' })}>Edit time blocks</Button>
     </Sheet>}
     {overlay?.type === 'progress' && detailTask && <Progress task={detailTask} stepId={overlay.stepId} onClose={() => setOverlay({ type: 'detail', id: detailTask.id })} onSave={minutes => { dispatch({ type: 'progress', taskId: detailTask.id, stepId: overlay.stepId, remaining: minutes }); if (minutes === 0) setBurst(b => b + 1); setToast(minutes === 0 ? 'Step completed.' : 'Progress saved. Checking your remaining work.'); setOverlay(minutes === 0 ? { type: 'detail', id: detailTask.id } : { type: 'compare' }); }} />}
     {overlay?.type === 'detail' && detailTask && <Sheet title={detailTask.title} subtitle={`Due ${dateLabel(detailTask.deadline)} at ${detailTask.deadline.split('T')[1]}`} onClose={close} footer={<Button kind="outline" onPress={() => setOverlay({ type: 'editor', task: detailTask })}>Edit roadmap</Button>}>
@@ -335,7 +353,8 @@ function Application() {
     </Sheet>}
     {overlay?.type === 'settings' && <Sheet title="Settings" onClose={close}>
       <Group>
-        <Row label="Weekly setup" sub="Study days, limits, commitments" onPress={() => setOverlay({ type: 'setup' })} />
+        <Row label="Time Blocks" sub="Study, free time, and sleep blueprint" onPress={() => setOverlay({ type: 'setup' })} />
+        <Row label="Events this week" sub="Classes, shifts, meetings" onPress={() => setOverlay({ type: 'weeklyEvents' })} />
         <Row label="Reduce motion" right={<Toggle label="Reduce motion" value={motionOff} onChange={v => { if (!systemReduceMotion) setLocalReduceMotion(v); }} />} />
       </Group>
       <Group>

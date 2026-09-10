@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import { makeDemo, sampleTask, seedTask } from './demo';
 import { reducer } from './state';
 import { planWork } from './planner';
-import { Dimension, WEEK, remaining } from './model';
+import { Dimension, Task, WEEK, remaining } from './model';
 import { ORDER, dimensionLoad, loadScores, toneFor } from './load';
 
 const scoresOf = (s: Parameters<typeof loadScores>[0]) =>

@@ -1,20 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Commitment, Dimension, WEEK, time } from './model';
+import { Commitment, Dimension, WEEK, daysLabel, duration, time, weekday } from './model';
 import { C, Chip, Group, Icon, Row, Sheet, Txt } from './ui';
 
-/** Anything that happens at a set time on chosen days: a study window, a class, sleep. */
-export interface Routine { name: string; start: number; end: number; days: string[]; kind: Commitment['kind']; dimension: Dimension }
-
-const weekday = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short' });
-/** "Every day", "Weekdays", or "Mon, Wed". */
-export function daysLabel(days: string[]): string {
-  const sorted = WEEK.filter(d => days.includes(d));
-  if (sorted.length === 7) return 'Every day';
-  if (sorted.length === 5 && sorted.every(d => WEEK.indexOf(d) < 5)) return 'Weekdays';
-  if (sorted.length === 2 && sorted.every(d => WEEK.indexOf(d) >= 5)) return 'Weekends';
-  return sorted.map(weekday).join(', ');
-}
+import { Routine } from './routines';
+export { daysLabel, weekday };
 
 // ---------- the clock wheel ----------
 
@@ -70,18 +60,36 @@ export function TimeWheel({ value, onChange, label }: { value: number; onChange:
   </View>;
 }
 
-/** Seven round day buttons, as in an alarm's repeat setting. */
+/** Seven round day buttons for selecting repeat days. */
 export function DaysPicker({ days, onChange }: { days: string[]; onChange: (days: string[]) => void }) {
-  return <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }}>
-    {WEEK.map(date => {
-      const on = days.includes(date);
-      return <Pressable key={date} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={weekday(date)}
-        onPress={() => onChange(on ? days.filter(d => d !== date) : [...days, date])}
-        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.green : C.sage }}>
-        <Txt style={{ fontSize: 14, fontWeight: '700', color: on ? C.white : C.green }}>{weekday(date).slice(0, 1)}</Txt>
-      </Pressable>;
-    })}
-  </View>;
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }}>
+      {WEEK.map(date => {
+        const on = days.includes(date);
+        return (
+          <Pressable
+            key={date}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on }}
+            accessibilityLabel={weekday(date)}
+            onPress={() => onChange(on ? days.filter(d => d !== date) : [...days, date])}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: on ? C.green : C.sage,
+            }}
+          >
+            <Txt style={{ fontSize: 14, fontWeight: '700', color: on ? C.white : C.green }}>
+              {weekday(date).slice(0, 1)}
+            </Txt>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 }
 
 const KINDS: { id: Commitment['kind']; title: string; sub: string }[] = [
@@ -101,7 +109,7 @@ export function RoutineEditor({ heading, study = false, kinds = ['fixed', 'flexi
   const set = (patch: Partial<Routine>) => { setR(prev => ({ ...prev, ...patch })); setError(''); };
   const save = () => {
     if (!study && !r.name.trim()) return setError('Add a name.');
-    if (r.end <= r.start) return setError('End after it starts.');
+    if (r.start === r.end) return setError('Start and end time cannot be the same.');
     if (!r.days.length) return setError('Pick at least one day.');
     onSave({ ...r, name: r.name.trim() });
   };
@@ -118,10 +126,18 @@ export function RoutineEditor({ heading, study = false, kinds = ['fixed', 'flexi
       {open === 'end' && <TimeWheel label="End" value={r.end} onChange={end => set({ end })} />}
     </Group>
 
-    {/* <Group>
+    {r.end < r.start && (
+      <View style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.sage, borderRadius: 10, alignSelf: 'flex-start' }}>
+        <Txt style={{ fontSize: 12, fontWeight: '700', color: C.green }}>
+          🌙 Overnight · Ends next day at {time(r.end)} ({duration(1440 - r.start + r.end)})
+        </Txt>
+      </View>
+    )}
+
+    <Group>
       <Row label="Repeat" value={r.days.length ? daysLabel(r.days) : 'Never'} />
       <DaysPicker days={r.days} onChange={days => set({ days })} />
-    </Group> */}
+    </Group>
 
     {!study && kinds.length > 1 && <Group title="Type">
       {KINDS.filter(k => kinds.includes(k.id)).map(k => <Row key={k.id} label={k.title} sub={k.sub} onPress={() => set({ kind: k.id })}
@@ -139,33 +155,4 @@ export function RoutineEditor({ heading, study = false, kinds = ['fixed', 'flexi
 
 // ---------- routines ↔ commitments ----------
 
-/** Commitments with the same name, time and type are one repeating routine. */
-export function groupCommitments(all: Commitment[]): Commitment[][] {
-  const groups = new Map<string, Commitment[]>();
-  for (const c of all) {
-    const key = `${c.title}|${c.start}|${c.end}|${c.kind}`;
-    groups.set(key, [...(groups.get(key) || []), c]);
-  }
-  return [...groups.values()].sort((a, b) => a[0].start - b[0].start);
-}
-export const routineOf = (group: Commitment[]): Routine =>
-  ({ name: group[0].title, start: group[0].start, end: group[0].end, days: group.map(c => c.date), kind: group[0].kind, dimension: group[0].dimension });
-
-/** The commitments a routine becomes: one per chosen day, keeping ids for days that already existed. */
-export function commitmentsFor(old: Commitment[], r: Routine): Commitment[] {
-  const base = old[0]?.id ?? `event-${Date.now()}`;
-  const length = r.end - r.start;
-  return WEEK.filter(d => r.days.includes(d)).map(date => {
-    const prev = old.find(o => o.date === date) ?? old[0];
-    const keepMove = r.kind === 'flexible' && prev?.moveWindows?.length && prev.moveWindows[0].end - prev.moveWindows[0].start === length;
-    return {
-      ...(prev ?? {}),
-      id: old.find(o => o.date === date)?.id ?? `${base}-${date}`,
-      title: r.name, date, start: r.start, end: r.end, kind: r.kind,
-      dimension: r.kind === 'recovery' ? 'physical' : r.dimension,
-      demand: r.kind === 'recovery' ? 'low' : prev?.demand ?? 'medium',
-      // A plan may only move a flexible event into a slot it is allowed to use.
-      moveWindows: r.kind !== 'flexible' ? undefined : keepMove ? prev!.moveWindows : [{ date: WEEK[5], start: 600, end: 600 + length }],
-    } as Commitment;
-  });
-}
+export { Routine, groupCommitments, routineOf, commitmentsFor } from './routines';

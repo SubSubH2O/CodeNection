@@ -25,7 +25,14 @@ export function setupErrors(preferences: Preferences, commitments: Commitment[])
     if (!validDate(window.date) || !Number.isInteger(window.start) || !Number.isInteger(window.end) || window.start < 0 || window.end > 1440 || window.start >= window.end || window.start % 15 || window.end % 15) errors.push('Use valid dates and time ranges in 15-minute increments.');
   }
   if (commitments.some(c => !c.title.trim())) errors.push('Name every commitment.');
-  commitments.forEach((c, i) => { if (commitments.slice(i + 1).some(other => overlaps(c, other))) errors.push('Two commitments overlap. Adjust their times.'); });
+  commitments.forEach((c, i) => {
+    if (commitments.slice(i + 1).some(other => {
+      if (c.kind === 'recovery' || other.kind === 'recovery') return false;
+      return overlaps(c, other);
+    })) {
+      errors.push('Two commitments overlap. Adjust their times.');
+    }
+  });
   preferences.availability.forEach((w, i) => { if (preferences.availability.slice(i + 1).some(other => overlaps(w, other))) errors.push('Study windows overlap. Combine or adjust them.'); });
   return [...new Set(errors)];
 }
@@ -43,8 +50,8 @@ export function reducer(state: AppState, action: Action): AppState {
   }
   if (action.type === 'setup') {
     if (setupErrors(action.preferences, action.commitments).length) return state;
-    // Constraints have changed: keep task progress, clear future work for a fresh preview.
-    return updated({ preferences: action.preferences, commitments: action.commitments, setupDone: true, blocks: state.blocks.filter(b => stamp(b) < state.now), undo: snapshot(state) });
+    // Constraints updated: preserve existing task blocks. Setup is for baseline and future rescheduling.
+    return updated({ preferences: action.preferences, commitments: action.commitments, setupDone: true, blocks: state.blocks, undo: snapshot(state) });
   }
   if (action.type === 'approve') {
     const plan = action.plan;

@@ -98,6 +98,8 @@ export function planWork(state: AppState, tasks = state.tasks): PlanningResult {
     for (const destination of event.moveWindows || []) {
       const moved = { ...event, date: destination.date, start: destination.start, end: destination.start + event.end - event.start };
       if (moved.end > destination.end || stamp(moved) < state.now || state.commitments.some(c => c.id !== event.id && overlaps(c, moved))) continue;
+      // Rescheduling rule: do not move entertainment or flexible activities into study time
+      if (state.preferences.availability.some(w => overlaps(w, moved))) continue;
       const commitments = state.commitments.map(c => c.id === event.id ? moved : c);
       const title = `Move ${event.title.toLowerCase()}`;
       const description = `Free ${duration(event.end - event.start)} on ${dateLabel(event.date)}. ${event.title} moves to ${dateLabel(moved.date)}.`;

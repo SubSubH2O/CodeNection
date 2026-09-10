@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from './model';
-import { makeDemo } from './demo';
+import { emptyWeek, makeDemo } from './demo';
 import { Action, parseSaved, reducer } from './state';
 
 const KEY = 'loadtree-demo-v4';
 const Context = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; ready: boolean; storageError: boolean } | null>(null);
 export function LoadTreeProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer((s: AppState, a: Action | { type: 'hydrate'; state: AppState }) => a.type === 'hydrate' ? a.state : reducer(s, a), makeDemo());
+  const [state, dispatch] = useReducer((s: AppState, a: Action | { type: 'hydrate'; state: AppState }) => a.type === 'hydrate' ? a.state : reducer(s, a), emptyWeek());
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   useEffect(() => {
