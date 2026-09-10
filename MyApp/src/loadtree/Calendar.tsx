@@ -1,33 +1,13 @@
-import React from 'react';
-import { Pressable, View } from 'react-native';
-import { AppState, Block, Candidate, Commitment, dateLabel, stamp, time } from './model';
-import { C, Icon, S, Txt } from './ui';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Pressable, View, ViewStyle } from 'react-native';
+import Svg, { Defs, Pattern, Path, Rect } from 'react-native-svg';
+import { AppState, Block, Candidate, Commitment, dateLabel, overlaps, stamp, time, Window } from './model';
+import { C, DIM_TONE, Icon, S, Txt } from './ui';
 import { gridDays } from './calendarDates';
+import { PixelLeaf } from './Pixel';
 
-const key = (item: { id: string; date: string; start: number; end: number }) => `${item.id}|${item.date}|${item.start}|${item.end}`;
-
-export interface PlanChanges { added: Block[]; removed: Block[]; moved: { now: Commitment; before: Commitment }[]; total: number; days: Set<string> }
-
-export function planChanges(state: AppState, plan?: Candidate | null): PlanChanges {
-  const empty: PlanChanges = { added: [], removed: [], moved: [], total: 0, days: new Set() };
-  if (!plan) return empty;
-  const saved = new Set([...state.commitments, ...state.blocks].map(key));
-  const added = plan.blocks.filter(b => !saved.has(key(b)) && stamp(b) >= state.now);
-  const moved = plan.commitments
-    .map(now => ({ now, before: state.commitments.find(c => c.id === now.id)! }))
-    .filter(pair => pair.before && (pair.before.date !== pair.now.date || pair.before.start !== pair.now.start));
-  // Work lifted off a day is a change the student needs to see, even though it
-  // is the same change as the block that appears elsewhere — so flag the day
-  // without counting it twice.
-  const removed = state.blocks.filter(b => stamp(b) >= state.now && !plan.blocks.some(p => p.id === b.id));
-  const days = new Set<string>([...added.map(b => b.date), ...removed.map(b => b.date), ...moved.flatMap(m => [m.now.date, m.before.date])]);
-  return { added, removed, moved, total: added.length + moved.length, days };
-}
-
-export const changesOn = (changes: PlanChanges, date: string) =>
-  changes.added.filter(b => b.date === date).length
-  + changes.removed.filter(b => b.date === date).length
-  + changes.moved.filter(m => m.now.date === date || m.before.date === date).length;
+import { slotKey as key, PlanChanges } from './planChanges';
+export { planChanges, changesOn } from './planChanges';
 
 // ---------- month ----------
 
@@ -37,7 +17,7 @@ const DAY_INITIALS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 function CalendarNav({ label, onStep, onToday }: { label: string; onStep: (d: 1 | -1) => void; onToday: () => void }) {
   const arrow = (dir: 1 | -1) => (
     <Pressable accessibilityRole="button" accessibilityLabel={dir === -1 ? `Previous ${label}` : `Next ${label}`} onPress={() => onStep(dir)}
-      style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: pressed ? C.sage : C.white, alignItems: 'center', justifyContent: 'center', transform: dir === 1 ? [{ rotate: '180deg' }] : [] })}>
+      style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, backgroundColor: pressed ? C.sage : 'transparent', alignItems: 'center', justifyContent: 'center', transform: dir === 1 ? [{ rotate: '180deg' }] : [] })}>
       <Icon name="back" size={18} />
     </Pressable>
   );
@@ -57,7 +37,7 @@ export function MonthGrid({ state, selected, onSelect, changes }: { state: AppSt
   const deadlines = new Set(state.tasks.filter(t => t.steps.some(s => s.remaining > 0)).map(t => t.deadline.slice(0, 10)));
   const days = gridDays(selected);
   return (
-    <View style={{ gap: 6, backgroundColor: '#EAF4EE', borderRadius: 26, padding: 10 }}>
+    <View style={{ gap: 6 }}>
       <CalendarNav label="month" onToday={() => onSelect(state.now.slice(0, 10))} onStep={dir => {
         const d = new Date(`${month}-01T12:00:00Z`);
         d.setUTCMonth(d.getUTCMonth() + dir);
@@ -82,7 +62,7 @@ export function MonthGrid({ state, selected, onSelect, changes }: { state: AppSt
                 onPress={() => onSelect(day)}
                 style={{ flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', gap: 3 }}
               >
-                <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: isSelected ? C.green : outside ? 'transparent' : '#F7FAF8', borderWidth: isSelected || preview ? 2 : 1, borderColor: isSelected ? '#A5D6C2' : preview ? C.flag : '#DCE8E0' }}>
+                <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: isSelected ? C.green : 'transparent', borderWidth: preview && !isSelected ? 2 : 0, borderColor: C.flag }}>
                   <Txt style={{ fontSize: 15, fontWeight: isSelected ? '700' : '500', color: isSelected ? C.white : outside ? '#AEB8B0' : C.ink }}>{Number(day.slice(-2))}</Txt>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 3, height: 6 }}>
@@ -95,8 +75,8 @@ export function MonthGrid({ state, selected, onSelect, changes }: { state: AppSt
         </View>
       ))}
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 14, paddingTop: 2 }}>
-        <Txt muted style={{ fontSize: 12 }}>Amber = proposed</Txt>
-        <Txt muted style={{ fontSize: 12 }}>Green = deadline</Txt>
+        <Txt style={{ fontSize: 12, color: C.flag }}>● Proposed</Txt>
+        <Txt style={{ fontSize: 12, color: C.calm }}>● Deadline</Txt>
       </View>
     </View>
   );
@@ -113,7 +93,7 @@ export function WeekStrip({ state, selected, onSelect, changes }: { state: AppSt
     return d.toISOString().slice(0, 10);
   });
   return (
-    <View style={{ gap: 6, backgroundColor: '#EAF4EE', borderRadius: 26, padding: 10 }}>
+    <View style={{ gap: 6 }}>
       <CalendarNav label="week" onToday={() => onSelect(state.now.slice(0, 10))} onStep={dir => {
         const d = new Date(`${selected}T12:00:00Z`);
         d.setUTCDate(d.getUTCDate() + dir * 7);
@@ -128,7 +108,7 @@ export function WeekStrip({ state, selected, onSelect, changes }: { state: AppSt
           <Pressable key={day} accessibilityRole="button" accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`${dateLabel(day, true)}${preview ? ', has proposed changes' : ''}${deadline ? ', deadline' : ''}`}
             onPress={() => onSelect(day)}
-            style={{ flex: 1, paddingVertical: 8, borderRadius: 16, alignItems: 'center', gap: 3, backgroundColor: isSelected ? C.green : C.white, borderWidth: 1, borderColor: isSelected ? C.green : C.line }}>
+            style={{ flex: 1, paddingVertical: 8, borderRadius: 16, alignItems: 'center', gap: 3, backgroundColor: isSelected ? C.green : 'transparent' }}>
             <Txt style={{ fontSize: 10.5, fontWeight: '600', color: isSelected ? '#BBD8C7' : C.muted }}>{DAY_INITIALS[i]}</Txt>
             <Txt style={{ fontSize: 15, fontWeight: '700', color: isSelected ? C.white : C.ink }}>{Number(day.slice(-2))}</Txt>
             <View style={{ flexDirection: 'row', gap: 2, height: 5 }}>
@@ -148,12 +128,12 @@ export function WeekStrip({ state, selected, onSelect, changes }: { state: AppSt
 const HOUR = 60;
 const GUTTER = 50;
 
-const hourLabel = (h: number) => (h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`);
+const hourLabel = (h: number) => (h % 24 === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`);
 const clock = (m: number) => `${((Math.floor(m / 60) + 11) % 12) + 1}${m % 60 ? `:${String(m % 60).padStart(2, '0')}` : ''}`;
-const meridiem = (m: number) => (Math.floor(m / 60) < 12 ? 'AM' : 'PM');
+const meridiem = (m: number) => (Math.floor(m / 60) % 24 < 12 ? 'AM' : 'PM');
 const span = (s: number, e: number) => (meridiem(s) === meridiem(e) ? `${clock(s)} – ${clock(e)} ${meridiem(e)}` : `${clock(s)} ${meridiem(s)} – ${clock(e)} ${meridiem(e)}`);
 
-type Row = { id: string; title: string; start: number; end: number; look: 'commitment' | 'recovery' | 'study'; status: 'saved' | 'new' | 'moved' | 'ghost'; note?: string; taskId?: string; steps?: number; lane: number; lanes: number };
+type Row = { id: string; title: string; start: number; end: number; look: 'commitment' | 'recovery' | 'study'; status: 'saved' | 'new' | 'moved' | 'ghost'; note?: string; taskId?: string; steps?: number; done?: number; ids?: string[]; destination?: Block | Commitment; conflict?: boolean; lane: number; lanes: number; dim?: string };
 
 function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[] {
   const commitments = plan?.commitments || state.commitments;
@@ -167,18 +147,17 @@ function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[
     rows.push({
       id: c.id, title: c.title, start: c.start, end: c.end,
       look: c.kind === 'recovery' ? 'recovery' : 'commitment',
-      status: movedHere ? 'moved' : 'saved',
+      status: movedHere ? 'moved' : !before && plan ? 'new' : 'saved',
       note: movedHere && before ? `from ${before.date === c.date ? '' : `${dateLabel(before.date)}, `}${clock(before.start)} ${meridiem(before.start)}` : undefined,
-      lane: 0, lanes: 1,
+      lane: 0, lanes: 1, dim: c.dimension,
     });
   }
   for (const b of blocks.filter(b => b.date === date)) {
     const owner = tasks.find(t => t.id === b.taskId);
     rows.push({
       id: b.id, title: owner?.title ?? b.title, start: b.start, end: b.end, look: 'study',
-      status: !plan || saved.has(key(b)) ? 'saved' : 'new',
-      note: owner ? `${owner.steps.length} subtasks ›` : undefined,
-      taskId: b.taskId, lane: 0, lanes: 1,
+      status: !plan || saved.has(key(b)) ? 'saved' : state.blocks.some(old => old.taskId === b.taskId && old.stepId === b.stepId) ? 'moved' : 'new',
+      taskId: b.taskId, steps: owner?.steps.length, done: owner?.steps.filter(s => s.remaining === 0).length, ids: [b.id], lane: 0, lanes: 1,
     });
   }
   if (plan) {
@@ -186,12 +165,13 @@ function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[
       const after = plan.commitments.find(c => c.id === before.id);
       if (!after || before.date !== date) continue;
       if (after.date === before.date && after.start === before.start) continue;
-      rows.push({ id: `ghost-${before.id}`, title: before.title, start: before.start, end: before.end, look: 'commitment', status: 'ghost', note: `moves to ${dateLabel(after.date)} ${time(after.start)}`, lane: 0, lanes: 1 });
+      rows.push({ id: `ghost-${before.id}`, title: before.title, start: before.start, end: before.end, look: 'commitment', status: 'ghost', destination: after, note: `→ ${dateLabel(after.date)} ${time(after.start)}`, lane: 0, lanes: 1 });
     }
     for (const before of state.blocks) {
       if (before.date !== date || stamp(before) < state.now) continue;
-      if (plan.blocks.some(b => b.id === before.id)) continue;
-      rows.push({ id: `ghost-${before.id}`, title: before.title, start: before.start, end: before.end, look: 'study', status: 'ghost', note: 'moves in this plan', lane: 0, lanes: 1 });
+      if (plan.blocks.some(b => key(b) === key(before))) continue;
+      const destination = plan.blocks.filter(b => b.taskId === before.taskId && b.stepId === before.stepId).sort((a, b) => stamp(a).localeCompare(stamp(b)))[0];
+      rows.push({ id: `ghost-${before.id}`, title: before.title, start: before.start, end: before.end, look: 'study', status: 'ghost', destination, note: destination ? `→ ${dateLabel(destination.date)} ${time(destination.start)}` : 'Not scheduled', lane: 0, lanes: 1 });
     }
   }
   rows.sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
@@ -200,19 +180,20 @@ function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[
   // Merging them is both truer to the day and the only way they stay readable.
   const merged: Row[] = [];
   for (const row of rows) {
-    const prev = merged[merged.length - 1];
+    const prev = [...merged].reverse().find(r => r.look === 'study' && r.taskId === row.taskId && r.status === row.status && r.end === row.start);
     const joinable = prev && prev.look === 'study' && row.look === 'study'
       && prev.taskId && prev.taskId === row.taskId
       && prev.status === row.status && prev.end === row.start;
     if (joinable) {
       prev.end = row.end;
-      prev.steps = (prev.steps ?? 1) + 1;
+      prev.ids = [...(prev.ids || []), ...(row.ids || [])];
       continue;
     }
     merged.push({ ...row });
   }
 
   rows = merged;
+  rows.forEach(row => { row.conflict = row.status !== 'ghost' && rows.some(other => other !== row && other.status !== 'ghost' && row.start < other.end && other.start < row.end); });
 
 
   // Overlapping rows share the width of their own cluster only.
@@ -239,7 +220,32 @@ function buildRows(state: AppState, date: string, plan?: Candidate | null): Row[
   return rows;
 }
 
-export function DayTimeline({ state, date, plan, onTask, onSlot, onEvent }: { state: AppState; date: string; plan?: Candidate | null; onTask?: (id: string) => void; onSlot?: (startMinutes: number) => void; onEvent?: (id: string) => void }) {
+function TimelineItem({ children, style, quiet, reduceMotion, flash, appearance }: { children: React.ReactNode; style: ViewStyle & { top: number; height: number }; quiet: boolean; reduceMotion: boolean; flash: number; appearance: string }) {
+  const y = useRef(new Animated.Value(style.top)).current;
+  const h = useRef(new Animated.Value(style.height)).current;
+  const x = useRef(new Animated.Value(parseFloat(String(style.left)))).current;
+  const w = useRef(new Animated.Value(parseFloat(String(style.width)))).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const drop = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const targets: [Animated.Value, number][] = [[y, style.top], [h, style.height], [x, parseFloat(String(style.left))], [w, parseFloat(String(style.width))]];
+    targets.forEach(([value, toValue]) => { value.stopAnimation(); if (quiet || reduceMotion) value.setValue(toValue); else Animated.spring(value, { toValue, useNativeDriver: false, damping: 24, stiffness: 220, mass: 1 }).start(); });
+    return () => targets.forEach(([value]) => value.stopAnimation());
+  }, [style.top, style.height, style.left, style.width, quiet, reduceMotion]);
+  useEffect(() => {
+    opacity.stopAnimation(); drop.stopAnimation(); opacity.setValue(1); drop.setValue(0);
+    if (quiet || reduceMotion || (!flash && !appearance)) return;
+    drop.setValue(appearance ? -22 : 0);
+    const animation = Animated.parallel([
+      Animated.spring(drop, { toValue: 0, useNativeDriver: false, damping: 18, stiffness: 200, mass: 0.8 }),
+      Animated.sequence([Animated.timing(opacity, { toValue: 0.4, duration: 150, useNativeDriver: false }), Animated.timing(opacity, { toValue: 1, duration: 350, useNativeDriver: false })]),
+    ]);
+    animation.start(); return () => animation.stop();
+  }, [flash, appearance, quiet, reduceMotion]);
+  return <Animated.View style={[style, { top: y, height: h, left: x.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }), width: w.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }), transform: [{ translateY: drop }], opacity: Animated.multiply(opacity, Number(style.opacity ?? 1)), overflow: 'hidden' }]}>{children}</Animated.View>;
+}
+
+export function DayTimeline({ state, date, plan, onTask, onSlot, onEvent, reduceMotion = false, focus, onJump }: { state: AppState; date: string; plan?: Candidate | null; onTask?: (id: string) => void; onSlot?: (startMinutes: number) => void; onEvent?: (id: string) => void; reduceMotion?: boolean; focus?: { blockId?: string; nonce: number } | null; onJump?: (block: Block | Commitment) => void }) {
   const rows = buildRows(state, date, plan);
   const empty = rows.length === 0;
   const from = empty ? 8 : Math.min(8, Math.floor(Math.min(...rows.map(r => r.start)) / 60));
@@ -267,22 +273,27 @@ export function DayTimeline({ state, date, plan, onTask, onSlot, onEvent }: { st
             style={({ pressed }) => ({ position: 'absolute', left: 0, right: 0, top: i * HOUR, height: HOUR, borderRadius: 10, backgroundColor: pressed ? C.sage : 'transparent' })}
           />
         ))}
-        {rows.map(row => {
+        {rows.map((row, rowIndex) => {
           const ghost = row.status === 'ghost';
           const proposed = row.status === 'new' || row.status === 'moved';
           const top = ((row.start - from * 60) / 60) * HOUR;
           const box = Math.max(((row.end - row.start) / 60) * HOUR - 3, 26);
           const onDark = false;
+          const tone = row.look === 'recovery' ? DIM_TONE.recovery : row.look === 'study' ? DIM_TONE.study : DIM_TONE[row.dim || 'errands'] ?? DIM_TONE.errands;
           const body = (
-            <View style={{ flex: 1, gap: 1, justifyContent: 'center', overflow: 'hidden' }}>
+            <View style={{ flex: 1, gap: 1, justifyContent: box > 60 ? 'flex-start' : 'center', paddingTop: box > 60 ? 3 : 0, overflow: 'hidden' }}>
+              {row.conflict && <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}><Svg width="100%" height="100%"><Defs><Pattern id={`hatch-${rowIndex}`} patternUnits="userSpaceOnUse" width={10} height={10}><Path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke={C.red} strokeWidth={2} opacity={0.2} /></Pattern></Defs><Rect width="100%" height="100%" fill={`url(#hatch-${rowIndex})`} /></Svg></View>}
               <View style={[S.between, { gap: 6 }]}>
+                {row.conflict && <Txt accessibilityLabel="Scheduling conflict" style={{ fontWeight: '800', color: C.red }}>!</Txt>}
+                {row.look === 'study' && !ghost && <PixelLeaf size={11} color={proposed ? C.flag : tone.fg} />}
                 <Txt numberOfLines={1} style={{ flex: 1, fontSize: 13.5, lineHeight: 17, fontWeight: '700', color: onDark ? C.white : ghost ? C.muted : C.ink, textDecorationLine: ghost ? 'line-through' : 'none' }}>{row.title}</Txt>
-                {proposed && <View style={{ backgroundColor: C.flag, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 2 }}><Txt style={{ fontSize: 10.5, fontWeight: '800', color: C.white }}>{row.status === 'new' ? 'New' : 'Moved'}</Txt></View>}
+                {proposed && box > 38 && <View style={{ backgroundColor: C.flag, borderRadius: 7, paddingHorizontal: 7, paddingVertical: 2 }}><Txt style={{ fontSize: 10.5, fontWeight: '800', color: C.white }}>{row.status === 'new' ? 'New' : 'Moved'}</Txt></View>}
                 {ghost && <View style={{ borderRadius: 7, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: C.muted }}><Txt style={{ fontSize: 10.5, fontWeight: '700', color: C.muted }}>Was here</Txt></View>}
                 {row.look === 'recovery' && <Icon name="lock" size={14} color={C.teal} />}
               </View>
               {box > 38 && <Txt numberOfLines={1} style={{ fontSize: 11.5, lineHeight: 15, color: onDark ? '#DCEBDF' : C.muted }}>{span(row.start, row.end)}</Txt>}
-              {box > 50 && row.note && <Txt numberOfLines={1} style={{ fontSize: 11, lineHeight: 14, color: onDark ? '#DCEBDF' : proposed ? '#9A7223' : C.muted }}>{row.note}</Txt>}
+              {box > 50 && row.note && <Txt numberOfLines={1} style={{ fontSize: 11, lineHeight: 14, color: onDark ? '#DCEBDF' : proposed ? C.flag : C.muted }}>{row.note}</Txt>}
+              {row.steps && !ghost ? <View accessibilityLabel={`${row.done || 0} of ${row.steps} subtasks complete`} style={{ flexDirection: 'row', gap: 3, marginTop: 2 }}>{Array.from({ length: row.steps }, (_, i) => <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i < (row.done || 0) ? C.green : '#B7CEC1' }} />)}</View> : null}
             </View>
           );
           const style = {
@@ -292,22 +303,22 @@ export function DayTimeline({ state, date, plan, onTask, onSlot, onEvent }: { st
             left: `${(row.lane / row.lanes) * 100}%` as const,
             width: `${(1 / row.lanes) * 100}%` as const,
             paddingHorizontal: 11,
-            paddingVertical: 6,
-            borderRadius: 16,
-            borderWidth: proposed ? 1.8 : 1,
+            paddingVertical: box <= 38 ? 2 : 6,
+            borderRadius: 14,
+            // Saved items: a soft tint with a colour edge for their part of life. Proposals: dashed lavender.
+            borderWidth: proposed || ghost || row.conflict ? 1.6 : 0,
+            borderLeftWidth: proposed || ghost || row.conflict ? 1.6 : 4,
             borderStyle: (proposed || ghost ? 'dashed' : 'solid') as 'dashed' | 'solid',
-            borderColor: proposed ? C.flag : row.look === 'recovery' ? '#D3E5DC' : row.look === 'study' ? '#A4CFC0' : '#BADBCB',
-            backgroundColor: proposed ? C.flagBg : row.look === 'commitment' ? '#CEE6DA' : row.look === 'recovery' ? '#EDF4EF' : '#E0F0EA',
+            borderColor: row.conflict ? C.red : proposed ? C.flag : ghost ? C.muted : tone.fg,
+            borderLeftColor: row.conflict ? C.red : proposed ? C.flag : ghost ? C.muted : tone.fg,
+            backgroundColor: row.conflict ? C.redBg : ghost ? C.paper : proposed ? C.flagBg : tone.bg,
             opacity: ghost ? 0.5 : stamp({ date, start: row.start, end: row.end }, true) <= state.now ? 0.55 : 1,
           };
-          if (row.taskId && onTask && !proposed) {
-            return <Pressable key={row.id} accessibilityRole="button" accessibilityLabel={`${row.title}, ${span(row.start, row.end)}`} onPress={() => onTask(row.taskId!)} style={style}>{body}</Pressable>;
-          }
-          // Commitments you entered are yours to change — but not while previewing a proposal.
-          if (!plan && !proposed && onEvent && row.look !== 'study') {
-            return <Pressable key={row.id} accessibilityRole="button" accessibilityLabel={`Edit ${row.title}, ${span(row.start, row.end)}`} onPress={() => onEvent(row.id)} style={style}>{body}</Pressable>;
-          }
-          return <View key={row.id} style={style}>{body}</View>;
+          const action = ghost && row.destination && onJump ? () => onJump(row.destination!) : !plan && row.taskId && onTask ? () => onTask(row.taskId!) : !plan && onEvent && row.look !== 'study' ? () => onEvent(row.id) : undefined;
+          const identity = !ghost && row.taskId ? `${row.taskId}-${rows.slice(0, rowIndex).filter(r => r.taskId === row.taskId && r.status !== 'ghost').length}` : row.id;
+          return <TimelineItem key={identity} style={style} quiet={row.look === 'recovery'} reduceMotion={reduceMotion} flash={focus?.blockId && (row.ids || [row.id]).includes(focus.blockId) ? focus.nonce : 0} appearance={row.status === 'new' ? `${plan?.id}-${date}` : ''}>
+            {action ? <Pressable accessibilityRole="button" accessibilityLabel={`${row.title}, ${span(row.start, row.end)}${ghost ? `, ${row.note}` : ''}`} onPress={action} style={{ flex: 1 }}>{body}</Pressable> : body}
+          </TimelineItem>;
         })}
       </View>
     </View>

@@ -1,9 +1,30 @@
 import React from 'react';
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ViewStyle } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Rect } from 'react-native-svg';
 
-export const C = { paper: '#F2F8F5', green: '#145B48', ink: '#203D35', muted: '#61786F', line: '#DCEAE3', white: '#FFFFFF', sage: '#E3F1EA', moss: '#459F86', amber: '#85601E', amberBg: '#FFF3DB', red: '#9A473B', redBg: '#FCEDE7', teal: '#316F60', tealBg: '#E2F2EC', track: '#E9F0EC', calm: '#459F86', mid: '#D79832', heavy: '#D67B37', flag: '#BD7416', flagBg: '#FFF6E7', skyTop: '#CFEAF5', skyBottom: '#E7F6EE', meadow: '#BFE3A8', glass: 'rgba(255,255,255,0.78)', glassLine: 'rgba(255,255,255,0.85)' };
+// One calm green brand colour; categories are muted mid-tones of equal weight, so nothing shouts
+// (the approach Todoist, Notion and Things take: colour marks meaning, neutrals do the rest).
+export const C = {
+  paper: '#FFFFFF', white: '#FFFFFF', surface: '#F4F7F6', sage: '#E6F2ED', line: '#E3EAE7', track: '#EAF0ED',
+  green: '#166B55', greenDark: '#0E4F40', ink: '#1D302A', muted: '#718079',
+  moss: '#4F9A72', calm: '#4F9A72',                        // completed / best
+  amber: '#A8742F', amberBg: '#FBF2E3', mid: '#E0A64F', heavy: '#D7894F',
+  flag: '#E0A64F', flagBg: '#FCF5EA',                      // proposed change
+  red: '#CF5F5F', redBg: '#FBEDED',                        // deadline / danger
+  teal: '#5F9FA1', tealBg: '#E7F2F2',                      // recovery
+  study: '#5B7DBD', studyBg: '#EBF0F8', social: '#8B72C7', socialBg: '#F1EDF8',
+  physical: '#5FAE83', physicalBg: '#E9F4EE', errands: '#D69B55', errandsBg: '#FAF0E3',
+  neutralBar: '#CCD6D1',
+  skyTop: '#D3E7EF', skyBottom: '#E8F2EF', meadow: '#BCDDB0', glass: 'rgba(255,255,255,0.78)', glassLine: 'rgba(255,255,255,0.85)',
+};
+/** Each part of life keeps one colour everywhere it appears. */
+export const DIM_TONE: Record<string, { fg: string; bg: string }> = {
+  study: { fg: C.study, bg: C.studyBg }, mental: { fg: C.study, bg: C.studyBg }, social: { fg: C.social, bg: C.socialBg },
+  physical: { fg: C.physical, bg: C.physicalBg }, errands: { fg: C.errands, bg: C.errandsBg }, time: { fg: C.green, bg: C.sage },
+  recovery: { fg: C.teal, bg: C.tealBg },
+};
+export const STEP_COLORS = [DIM_TONE.study, DIM_TONE.social, DIM_TONE.physical, DIM_TONE.errands, DIM_TONE.recovery];
 // Native shadows and elevation also render on web; no platform-only blur dependency.
 export const SOFT_SHADOW: ViewStyle = { shadowColor: '#286D57', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 2 };
 export const LIFT_SHADOW: ViewStyle = { shadowColor: '#1B5B49', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.16, shadowRadius: 28, elevation: 8 };
@@ -98,9 +119,60 @@ export function Notice({ children, tone = 'green' }: { children: React.ReactNode
 export function Page({ children }: { children: React.ReactNode }) {
   return <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, paddingTop: 14, paddingBottom: 28, gap: 22 }} style={{ flex: 1 }}>{children}</ScrollView>;
 }
-export function Sheet({ title, subtitle, children, onClose, footer }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode }) {
-  return <Modal visible animationType="fade" onRequestClose={onClose} transparent><View style={{ flex: 1, backgroundColor: 'rgba(18,39,28,.35)' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center', backgroundColor: C.paper }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-    <View style={{ paddingHorizontal: 22, paddingVertical: 16, borderBottomWidth: 1, borderColor: C.line, gap: 4 }}><View style={S.between}><Title small>{title}</Title><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={{ padding: 12, borderRadius: 24, backgroundColor: C.sage }}><Icon name="close" size={20} /></Pressable></View>{subtitle && <Txt muted style={{ fontSize: 13 }}>{subtitle}</Txt>}</View>
+/** A white group of rows split by hairlines — one surface per group of related settings. */
+export function Group({ title, children }: { title?: string; children: React.ReactNode }) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return <View style={{ gap: 8 }}>
+    {title && <Txt style={{ fontSize: 13, fontWeight: '700', color: C.muted, paddingHorizontal: 4 }}>{title}</Txt>}
+    <View style={{ backgroundColor: C.surface, borderRadius: 18, paddingHorizontal: 16 }}>
+      {items.map((child, i) => <View key={i} style={i ? { borderTopWidth: 1, borderColor: C.line } : undefined}>{child}</View>)}
+    </View>
+  </View>;
+}
+/** One setting: label on the left, its value or control on the right. */
+export function Row({ label, sub, value, right, onPress, danger = false, disabled = false }: { label: string; sub?: string; value?: string; right?: React.ReactNode; onPress?: () => void; danger?: boolean; disabled?: boolean }) {
+  const body = <View style={{ minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, opacity: disabled ? 0.4 : 1 }}>
+    <View style={{ flex: 1 }}>
+      <Txt style={{ fontSize: 16, color: danger ? C.red : C.ink, fontWeight: danger ? '600' : '400' }}>{label}</Txt>
+      {!!sub && <Txt muted style={{ fontSize: 13, lineHeight: 18 }}>{sub}</Txt>}
+    </View>
+    {!!value && <Txt muted style={{ fontSize: 14 }}>{value}</Txt>}
+    {right}
+    {onPress && !right && !danger && <Icon name="forward" size={16} color={C.muted} />}
+  </View>;
+  return onPress ? <Pressable accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} accessibilityLabel={sub ? `${label}, ${sub}` : label} onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>{body}</Pressable> : body;
+}
+/** An on/off switch, as in Google Calendar. */
+export function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
+  // activeThumbColor/activeTrackColor are the web equivalents; native ignores them.
+  const web = { activeThumbColor: C.white, activeTrackColor: C.green } as object;
+  return <Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ true: C.green, false: '#D3DDD8' }} thumbColor={C.white} ios_backgroundColor="#D3DDD8" {...web} />;
+}
+/** − value + : for times and amounts, so nobody has to type "18:00". */
+export function Stepper({ value, label, onMinus, onPlus }: { value: string; label: string; onMinus: () => void; onPlus: () => void }) {
+  const button = (sign: string, onPress: () => void, what: string) => <Pressable accessibilityRole="button" accessibilityLabel={`${what} ${label}`} onPress={onPress} hitSlop={6}
+    style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? C.line : C.sage })}>
+    <Txt style={{ fontSize: 20, lineHeight: 22, color: C.green, fontWeight: '600' }}>{sign}</Txt>
+  </Pressable>;
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+    {button('−', onMinus, 'Decrease')}
+    <Txt style={{ minWidth: 62, textAlign: 'center', fontSize: 16, fontWeight: '600' }}>{value}</Txt>
+    {button('+', onPlus, 'Increase')}
+  </View>;
+}
+
+export const MotionContext = React.createContext(false);
+export function Sheet({ title, subtitle, children, onClose, footer, onSave }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode; onSave?: () => void }) {
+  const reduceMotion = React.useContext(MotionContext);
+  return <Modal visible animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onClose} transparent><View style={{ flex: 1, backgroundColor: 'rgba(18,39,28,.35)' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center', backgroundColor: C.paper }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+    {onSave
+      // Editing screens: close on the left, the title in the middle, save on the right.
+      ? <View style={[S.between, { paddingHorizontal: 8, paddingVertical: 8 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close without saving" onPress={onClose} style={{ padding: 12 }}><Icon name="close" size={24} color={C.ink} /></Pressable>
+          <Txt accessibilityRole="header" numberOfLines={1} style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700' }}>{title}</Txt>
+          <Pressable accessibilityRole="button" accessibilityLabel="Save" onPress={onSave} style={{ padding: 12 }}><Icon name="check" size={26} color={C.green} /></Pressable>
+        </View>
+      : <View style={{ paddingHorizontal: 22, paddingVertical: 16, borderBottomWidth: 1, borderColor: C.line, gap: 4 }}><View style={S.between}><Title small>{title}</Title><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={{ padding: 12, borderRadius: 24, backgroundColor: C.sage }}><Icon name="close" size={20} /></Pressable></View>{subtitle && <Txt muted style={{ fontSize: 13 }}>{subtitle}</Txt>}</View>}
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 22, gap: 18, paddingBottom: 32 }}>{children}</ScrollView>
     {footer && <View style={{ padding: 18, gap: 9, borderTopWidth: 1, borderColor: C.line, backgroundColor: C.paper }}>{footer}</View>}
   </KeyboardAvoidingView></SafeAreaView></View></Modal>;

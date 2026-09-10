@@ -17,10 +17,14 @@ export function makeDemo(setupDone = false): AppState {
     preferences: {
       name: 'Alex', dailyLimit: 150, avoidAfterShift: true,
       availability: [
+        // Tuesday and Wednesday evenings are mostly spoken for, so a crowded
+        // Friday forces a real choice: give up Monday evening, or move the gym.
         { date: WEEK[0], start: 1080, end: 1140 },
-        { date: WEEK[1], start: 1080, end: 1110 },
-        { date: WEEK[2], start: 1080, end: 1200 },
+        { date: WEEK[2], start: 1080, end: 1140 },
         { date: WEEK[3], start: 960, end: 1230 },
+        // Leaves a real 90-minute window before Friday's incoming work shift.
+        // Together with moving the flexible errand, the second demo task fits.
+        { date: WEEK[4], start: 780, end: 870 },
         { date: WEEK[4], start: 1080, end: 1260 },
       ],
     },

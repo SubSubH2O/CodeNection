@@ -1,42 +1,94 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
-import { AppState, Commitment, Preferences, WEEK, Window, dateLabel, time } from './model';
-import { Button, C, Chip, Field, Notice, S, Sheet, Txt } from './ui';
+import { Pressable, TextInput, View } from 'react-native';
+import { AppState, Commitment, Preferences, WEEK, Window, duration, time } from './model';
+import { C, Group, Icon, Row, Sheet, Stepper, Toggle, Txt } from './ui';
 import { setupErrors } from './state';
+import { Routine, RoutineEditor, commitmentsFor, daysLabel, groupCommitments, routineOf } from './RoutineEditor';
 
-const minutes = (value: string) => /^\d{2}:\d{2}$/.test(value) && Number(value.slice(3)) < 60 ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3)) : NaN;
-function TimeRange({ value, onChange }: { value: Window; onChange: (w: Window) => void }) {
-  const [start, setStart] = useState(time(value.start));
-  const [end, setEnd] = useState(time(value.end));
-  return <View style={S.row}><View style={{ flex: 1 }}><Field label="Start (HH:MM)" value={start} onChangeText={v => { setStart(v); onChange({ ...value, start: minutes(v) }); }} /></View><View style={{ flex: 1 }}><Field label="End (HH:MM)" value={end} onChangeText={v => { setEnd(v); onChange({ ...value, end: minutes(v) }); }} /></View></View>;
+const KIND_LABEL: Record<Commitment['kind'], string> = { fixed: 'Fixed', flexible: 'Flexible', recovery: 'Rest' };
+
+/** Study windows with the same hours are one repeating study time. */
+function groupWindows(all: Window[]): Window[][] {
+  const groups = new Map<string, Window[]>();
+  for (const w of all) groups.set(`${w.start}|${w.end}`, [...(groups.get(`${w.start}|${w.end}`) || []), w]);
+  return [...groups.values()].sort((a, b) => a[0].start - b[0].start);
 }
+
+/** A list row in the style of an alarm list: the time large, when it repeats underneath. */
+function RoutineRow({ big, sub, tag, onPress, label }: { big: string; sub: string; tag?: string; onPress: () => void; label: string }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+    <View style={{ minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 }}>
+      <View style={{ flex: 1 }}>
+        <Txt style={{ fontSize: 19, fontWeight: '600', letterSpacing: -0.2 }}>{big}</Txt>
+        <Txt muted style={{ fontSize: 13 }}>{sub}</Txt>
+      </View>
+      {!!tag && <Txt muted style={{ fontSize: 13 }}>{tag}</Txt>}
+      <Icon name="forward" size={16} color={C.muted} />
+    </View>
+  </Pressable>;
+}
+
+type Editing = { type: 'study'; old: Window[] } | { type: 'event'; rest: boolean; old: Commitment[] } | null;
+
 export function Setup({ state, onSave, onClose }: { state: AppState; onSave: (p: Preferences, c: Commitment[]) => void; onClose: () => void }) {
   const [preferences, setPreferences] = useState<Preferences>(JSON.parse(JSON.stringify(state.preferences)));
   const [commitments, setCommitments] = useState<Commitment[]>(JSON.parse(JSON.stringify(state.commitments)));
-  const [selected, setSelected] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Editing>(null);
   const [errors, setErrors] = useState<string[]>([]);
-  const update = (id: string, value: Partial<Commitment>) => setCommitments(all => all.map(c => c.id === id ? { ...c, ...value } : c));
+  const set = (patch: Partial<Preferences>) => setPreferences(p => ({ ...p, ...patch }));
   const save = () => { const issues = setupErrors(preferences, commitments); setErrors(issues); if (!issues.length) onSave(preferences, commitments); };
-  return <Sheet title="Make room for your week" subtitle="7–13 September · Times use your local clock" onClose={onClose} footer={<Button onPress={save}>Save weekly setup</Button>}>
-    <Notice>Your study windows are the only times we can use. Fixed commitments and protected recovery always take priority.</Notice>
-    {state.tasks.length > 0 && <Notice tone="amber">Saving new constraints clears future study blocks. Your task progress stays saved; review a new plan afterward.</Notice>}
-    <Field label="Your name" value={preferences.name} onChangeText={name => setPreferences({ ...preferences, name })} />
-    <Field label="Maximum study minutes per day" value={String(preferences.dailyLimit || '')} keyboardType="number-pad" onChangeText={v => setPreferences({ ...preferences, dailyLimit: Number(v) })} />
-    <Button kind="outline" icon={preferences.avoidAfterShift ? 'check' : 'plus'} onPress={() => setPreferences({ ...preferences, avoidAfterShift: !preferences.avoidAfterShift })}>{preferences.avoidAfterShift ? 'Gentle hour after draining shifts: on' : 'Gentle hour after draining shifts: off'}</Button>
-    <Txt style={{ fontWeight: '700', fontSize: 19 }}>When can you study?</Txt>
-    {WEEK.map(date => {
-      const w = preferences.availability.find(a => a.date === date);
-      return <View key={date} style={{ gap: 10, borderBottomWidth: 1, borderColor: C.line, paddingBottom: 14 }}><View style={S.between}><Txt>{dateLabel(date)}</Txt><Chip active={!!w} onPress={() => setPreferences({ ...preferences, availability: w ? preferences.availability.filter(a => a.date !== date) : [...preferences.availability, { date, start: 1080, end: 1200 }] })}>{w ? 'Study window' : 'No study'}</Chip></View>{w && <TimeRange value={w} onChange={value => setPreferences({ ...preferences, availability: preferences.availability.map(a => a.date === date ? value : a) })} />}</View>;
-    })}
-    <Txt style={{ fontWeight: '700', fontSize: 19 }}>Commitments & recovery</Txt>
-    {commitments.map(c => <View key={c.id} style={S.card}><View style={S.between}><View style={{ flex: 1, gap: 5 }}><Txt style={{ fontWeight: '600' }}>{c.title}</Txt><Txt muted style={{ fontSize: 12 }}>{dateLabel(c.date)} · {Number.isFinite(c.start) ? time(c.start) : '—'}–{Number.isFinite(c.end) ? time(c.end) : '—'}</Txt><Chip icon={c.kind === 'recovery' ? 'lock' : undefined} tone={c.kind === 'recovery' ? 'teal' : undefined}>{c.kind === 'recovery' ? 'Protected' : c.kind === 'fixed' ? 'Fixed' : 'Flexible'}</Chip></View><Button kind="quiet" onPress={() => setSelected(selected === c.id ? null : c.id)}>{selected === c.id ? 'Close' : 'Edit'}</Button></View>
-      {selected === c.id && <><Field label="Commitment name" value={c.title} onChangeText={title => update(c.id, { title })} /><Field label="Date (YYYY-MM-DD)" value={c.date} onChangeText={date => update(c.id, { date })} /><TimeRange value={c} onChange={value => update(c.id, value)} /><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{(['fixed', 'flexible', 'recovery'] as const).map(kind => <Chip key={kind} active={c.kind === kind} onPress={() => update(c.id, { kind })}>{kind === 'recovery' ? 'Protected recovery' : kind === 'fixed' ? 'Fixed' : 'Flexible'}</Chip>)}</View>
-      <Txt style={S.label}>Area of load</Txt><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{(['mental', 'physical', 'social', 'errands', 'time'] as const).map(dimension => <Chip key={dimension} active={c.dimension === dimension} onPress={() => update(c.id, { dimension })}>{dimension}</Chip>)}</View>
-      <Txt style={S.label}>Demand</Txt><View style={S.row}>{(['low', 'medium', 'high'] as const).map(demand => <Chip key={demand} active={c.demand === demand} onPress={() => update(c.id, { demand })}>{demand}</Chip>)}</View>
-      {c.kind === 'flexible' && <><Txt muted>Optional permitted destination. Without one, this event stays in place.</Txt><Button kind="outline" onPress={() => update(c.id, { moveWindows: c.moveWindows?.length ? [] : [{ date: WEEK[5], start: 600, end: 600 + (c.end - c.start || 60) }] })}>{c.moveWindows?.length ? 'Remove permitted move' : 'Allow a Saturday move'}</Button>{c.moveWindows?.map((w, i) => <View key={i} style={{ gap: 10 }}><Field label="Move date (YYYY-MM-DD)" value={w.date} onChangeText={date => update(c.id, { moveWindows: [{ ...w, date }] })} /><TimeRange value={w} onChange={value => update(c.id, { moveWindows: [value] })} /></View>)}</>}
-      <Button kind="danger" onPress={() => { setCommitments(commitments.filter(x => x.id !== c.id)); setSelected(null); }}>Remove commitment</Button></>}
-    </View>)}
-    <Button kind="outline" icon="plus" onPress={() => { const id = `event-${Date.now()}`; setCommitments([...commitments, { id, title: 'New commitment', date: WEEK[4], start: 900, end: 960, kind: 'fixed', dimension: 'mental', demand: 'medium' }]); setSelected(id); }}>Add commitment or recovery</Button>
-    {errors.length > 0 && <Notice tone="red">{errors.join('\n')}</Notice>}
+
+  const saveStudy = (old: Window[], r: Routine) => {
+    const rest = preferences.availability.filter(w => !old.includes(w));
+    set({ availability: [...rest, ...r.days.map(date => ({ date, start: r.start, end: r.end }))] });
+    setEditing(null);
+  };
+  const saveEvent = (old: Commitment[], r: Routine) => {
+    setCommitments(all => [...all.filter(c => !old.includes(c)), ...commitmentsFor(old, r)]);
+    setEditing(null);
+  };
+
+  return <Sheet title="Weekly setup" onClose={onClose} onSave={save}>
+    {errors.length > 0 && <Txt style={{ color: C.red, fontSize: 14 }}>{errors.join('\n')}</Txt>}
+
+    <Group title="Study time">
+      {groupWindows(preferences.availability).map(group => <RoutineRow key={`${group[0].start}-${group[0].end}`}
+        big={`${time(group[0].start)} – ${time(group[0].end)}`} sub={daysLabel(group.map(w => w.date))}
+        label={`Study ${time(group[0].start)} to ${time(group[0].end)}, ${daysLabel(group.map(w => w.date))}`}
+        onPress={() => setEditing({ type: 'study', old: group })} />)}
+      <Row label="Add study time" right={<Icon name="plus" size={20} />} onPress={() => setEditing({ type: 'study', old: [] })} />
+    </Group>
+
+    {([['Rest', true], ['Events', false]] as const).map(([title, rest]) => <Group key={title} title={title}>
+      {groupCommitments(commitments).filter(g => (g[0].kind === 'recovery') === rest).map(group => <RoutineRow key={group[0].id}
+        big={group[0].title} sub={`${daysLabel(group.map(c => c.date))} · ${time(group[0].start)} – ${time(group[0].end)}`} tag={rest ? undefined : KIND_LABEL[group[0].kind]}
+        label={`${group[0].title}, ${daysLabel(group.map(c => c.date))}, ${time(group[0].start)} to ${time(group[0].end)}`}
+        onPress={() => setEditing({ type: 'event', rest, old: group })} />)}
+      <Row label={rest ? 'Add rest' : 'Add event'} right={<Icon name="plus" size={20} />} onPress={() => setEditing({ type: 'event', rest, old: [] })} />
+    </Group>)}
+
+    <Group title="Limits">
+      <Row label="Most study per day" right={<Stepper label="daily study limit" value={duration(preferences.dailyLimit)} onMinus={() => set({ dailyLimit: Math.max(30, preferences.dailyLimit - 30) })} onPlus={() => set({ dailyLimit: Math.min(600, preferences.dailyLimit + 30) })} />} />
+      <Row label="Rest after tiring shifts" sub="Keeps the next hour free" right={<Toggle label="Rest after tiring shifts" value={preferences.avoidAfterShift} onChange={avoidAfterShift => set({ avoidAfterShift })} />} />
+    </Group>
+
+    <Group title="Name">
+      <TextInput accessibilityLabel="Your name" value={preferences.name} onChangeText={name => set({ name })} placeholder="Your name" placeholderTextColor={C.muted}
+        style={{ fontSize: 16, color: C.ink, paddingVertical: 16 }} />
+    </Group>
+
+    {state.tasks.length > 0 && <Txt muted style={{ fontSize: 12.5, textAlign: 'center' }}>Saving clears upcoming study blocks.</Txt>}
+
+    {editing?.type === 'study' && <RoutineEditor study heading={editing.old.length ? 'Study time' : 'Add study time'}
+      initial={editing.old.length ? { name: 'Study', start: editing.old[0].start, end: editing.old[0].end, days: editing.old.map(w => w.date), kind: 'fixed', dimension: 'mental' } : { name: 'Study', start: 1080, end: 1200, days: [], kind: 'fixed', dimension: 'mental' }}
+      onClose={() => setEditing(null)} onSave={r => saveStudy(editing.old, r)}
+      onDelete={editing.old.length ? () => { set({ availability: preferences.availability.filter(w => !editing.old.includes(w)) }); setEditing(null); } : undefined} />}
+    {editing?.type === 'event' && <RoutineEditor heading={editing.rest ? (editing.old.length ? 'Rest' : 'Add rest') : editing.old.length ? 'Edit event' : 'Add event'}
+      kinds={editing.rest ? ['recovery'] : ['fixed', 'flexible']}
+      initial={editing.old.length ? routineOf(editing.old) : editing.rest
+        ? { name: 'Sleep', start: 1320, end: 1440, days: [...WEEK], kind: 'recovery', dimension: 'physical' }
+        : { name: '', start: 900, end: 960, days: [], kind: 'fixed', dimension: 'mental' }}
+      onClose={() => setEditing(null)} onSave={r => saveEvent(editing.old, r)}
+      onDelete={editing.old.length ? () => { setCommitments(all => all.filter(c => !editing.old.includes(c))); setEditing(null); } : undefined} />}
   </Sheet>;
 }

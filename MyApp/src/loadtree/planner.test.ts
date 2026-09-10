@@ -5,7 +5,16 @@ import { planWork, validatePlan, futureCoverage } from './planner';
 import { parseSaved, reducer, setupErrors } from './state';
 import { remaining, stamp } from './model';
 
-const original = makeDemo(true);
+// These mechanics were written against a roomier week than the demo now uses.
+const ROOMY = [
+  { date: '2026-09-07', start: 1080, end: 1140 },
+  { date: '2026-09-08', start: 1080, end: 1110 },
+  { date: '2026-09-09', start: 1080, end: 1200 },
+  { date: '2026-09-10', start: 960, end: 1230 },
+  { date: '2026-09-11', start: 1080, end: 1260 },
+];
+const roomy = () => { const d = makeDemo(true); return { ...d, preferences: { ...d.preferences, availability: ROOMY } }; };
+const original = roomy();
 const task = sampleTask();
 const plans = planWork(original, [task]);
 assert.equal(plans.required, 300);

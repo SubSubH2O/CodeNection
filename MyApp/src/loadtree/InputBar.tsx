@@ -133,13 +133,14 @@ function VoiceSheet({ onClose, onDone }: { onClose: () => void; onDone: (seconds
   </Sheet>;
 }
 
-export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = false, onOpen }: {
+export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = false, onOpen, autoFocus = false }: {
   onCapture: (c: Capture) => void;
   onNotice: (message: string) => void;
   /** 'launcher' shows the box but hands taps to onOpen, so the real typing happens in the conversation. */
   mode?: 'full' | 'launcher';
   hasHistory?: boolean;
   onOpen?: () => void;
+  autoFocus?: boolean;
 }) {
   const [text, setText] = useState('');
   const [voice, setVoice] = useState(false);
@@ -175,9 +176,9 @@ export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = fals
             onChangeText={setText}
             onSubmitEditing={send}
             multiline
+            autoFocus={autoFocus}
             blurOnSubmit
             returnKeyType="go"
-            autoFocus
             accessibilityLabel="Describe a task or assignment"
             placeholder="What needs doing?"
             placeholderTextColor={C.muted}
@@ -187,7 +188,6 @@ export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = fals
         {round('Record a voice note', 'mic', () => { Keyboard.dismiss(); setVoice(true); })}
         {round(mode === 'launcher' ? 'Open your conversation' : 'Plan this task', 'send', mode === 'launcher' ? () => onOpen?.() : send, true)}
       </View>
-      {mode === 'full' && <Txt muted style={{ fontSize: 12, textAlign: 'center' }}>We’ll break it into steps and fit it into your calendar.</Txt>}
 
       {menu && <AttachMenu onClose={() => setMenu(false)} onPick={c => { setMenu(false); onCapture(c); }} />}
       {voice && <VoiceSheet onClose={() => setVoice(false)} onDone={seconds => { setVoice(false); onCapture({ title: '', note: `Voice note · ${clock(seconds)}` }); }} />}

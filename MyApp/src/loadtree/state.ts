@@ -12,6 +12,8 @@ export type Action =
   | { type: 'delete'; taskId: string }
   | { type: 'addCommitment'; commitment: Commitment }
   | { type: 'removeCommitment'; id: string }
+  /** One edit of a repeating event: several days change together and undo together. */
+  | { type: 'replaceCommitments'; remove: string[]; add: Commitment[] }
   | { type: 'advance' };
 
 export function setupErrors(preferences: Preferences, commitments: Commitment[]): string[] {
@@ -54,6 +56,12 @@ export function reducer(state: AppState, action: Action): AppState {
     if (setupErrors(state.preferences, next).length) return state;
     // A new fixed block can invalidate scheduled work, so clear future study blocks.
     return updated({ commitments: next, blocks: state.blocks.filter(b => stamp(b) < state.now), undo: snapshot(state) });
+  }
+  if (action.type === 'replaceCommitments') {
+    const next = [...state.commitments.filter(c => !action.remove.includes(c.id)), ...action.add];
+    if (setupErrors(state.preferences, next).length) return state;
+    const blocks = action.add.length ? state.blocks.filter(b => stamp(b) < state.now) : state.blocks;
+    return updated({ commitments: next, blocks, undo: snapshot(state) });
   }
   if (action.type === 'removeCommitment') {
     if (!state.commitments.some(c => c.id === action.id)) return state;

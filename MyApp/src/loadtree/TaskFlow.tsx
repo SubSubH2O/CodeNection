@@ -10,7 +10,7 @@ export function TaskEditor({ initial, seed, onClose, onPlan }: { initial?: Task;
   const [errors, setErrors] = useState<string[]>([]);
   const update = (id: string, patch: Partial<Task['steps'][number]>) => setTask(t => ({ ...t, steps: t.steps.map(s => s.id === id ? { ...s, ...patch } : s) }));
   const move = (i: number, delta: number) => { const steps = [...task.steps]; const other = i + delta; if (other < 0 || other >= steps.length) return; [steps[i], steps[other]] = [steps[other], steps[i]]; setTask({ ...task, steps }); };
-  return <Sheet title={initial ? 'Edit your roadmap' : 'One thing at a time'} subtitle="Steps you can actually start." onClose={onClose} footer={<><View style={S.between}><Txt muted>Remaining work</Txt><Txt style={{ fontWeight: '700' }}>{duration(remaining(task))}</Txt></View><Button onPress={() => { const issues = taskErrors(task); setErrors(issues); if (!issues.length) onPlan(task); }} icon="calendar">Check how it fits</Button></>}>
+  return <Sheet title={initial ? 'Edit steps' : 'New task'} onClose={onClose} footer={<><View style={S.between}><Txt muted>Remaining work</Txt><Txt style={{ fontWeight: '700' }}>{duration(remaining(task))}</Txt></View><Button onPress={() => { const issues = taskErrors(task); setErrors(issues); if (!issues.length) onPlan(task); }} icon="calendar">Check how it fits</Button></>}>
     {!initial && <View style={{ gap: 10 }}><Chip>Prepared suggestions · no live AI</Chip><Button kind="outline" onPress={() => setTask(sampleTask('Marketing report', task.id))}>Use sample report</Button></View>}
     <Field label="What do you need to do?" placeholder="e.g. Marketing report" value={task.title} onChangeText={title => setTask({ ...task, title })} />
     <View style={S.row}><View style={{ flex: 2 }}><Field label="Due date (YYYY-MM-DD)" value={task.deadline.split('T')[0]} onChangeText={date => setTask({ ...task, deadline: `${date}T${task.deadline.split('T')[1] || '12:00'}` })} /></View><View style={{ flex: 1 }}><Field label="Time (HH:MM)" value={task.deadline.split('T')[1]} onChangeText={value => setTask({ ...task, deadline: `${task.deadline.split('T')[0]}T${value}` })} /></View></View>
@@ -18,7 +18,6 @@ export function TaskEditor({ initial, seed, onClose, onPlan }: { initial?: Task;
     <View style={S.divider} /><View style={S.between}><Title small>Your roadmap</Title><Txt muted>{task.steps.length} steps</Txt></View><Txt muted style={{ fontSize: 13 }}>Estimates are a starting point. Edit anything.</Txt>
     {task.steps.map((step, i) => <View key={step.id} style={S.card}><Field label={`Step ${i + 1}`} value={step.title} onChangeText={title => update(step.id, { title })} /><Field label="Minutes left" keyboardType="number-pad" value={String(step.remaining)} onChangeText={v => update(step.id, { remaining: Number(v), estimate: Math.max(15, Number(v)) })} /><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}><Button kind="quiet" disabled={i === 0} onPress={() => move(i, -1)}>Move up</Button><Button kind="quiet" disabled={i === task.steps.length - 1} onPress={() => move(i, 1)}>Move down</Button><Button kind="quiet" onPress={() => setTask({ ...task, steps: task.steps.filter(s => s.id !== step.id) })}>Remove</Button></View></View>)}
     <Button kind="outline" icon="plus" onPress={() => setTask({ ...task, steps: [...task.steps, { id: `step-${Date.now()}`, title: '', estimate: 30, remaining: 30 }] })}>Add a step</Button>
-    <Txt muted style={{ fontSize: 12 }}>15-minute increments. Nothing is saved until you approve a plan.</Txt>
     {errors.length > 0 && <Notice tone="red">{errors.join('\n')}</Notice>}
   </Sheet>;
 }
@@ -55,7 +54,7 @@ export function Progress({ task, stepId, onClose, onSave }: { task: Task; stepId
     <Title small>{step.title}</Title><Txt muted>{duration(step.remaining)} left. A change of plan is part of the process.</Txt>
     {(['done', 'partly', 'not'] as const).map(c => <Button key={c} kind={choice === c ? 'primary' : 'outline'} onPress={() => setChoice(c)}>{c === 'done' ? 'Done' : c === 'partly' ? 'Partly done' : 'Not started'}</Button>)}
     {choice === 'partly' && <><Field label="How many minutes are still needed?" value={minutes} onChangeText={setMinutes} keyboardType="number-pad" /><Txt muted>Include all the work left in this step, even if the estimate has grown.</Txt></>}
-    {choice === 'not' && <Notice>We’ll keep the remaining estimate and check how it fits. Nothing moves without your approval.</Notice>}
+    {choice === 'not' && <Txt muted>We’ll check how the rest fits.</Txt>}
     {error && <Notice tone="red">{error}</Notice>}
   </Sheet>;
 }
