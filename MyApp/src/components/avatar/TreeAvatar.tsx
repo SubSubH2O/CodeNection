@@ -27,16 +27,51 @@ export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState, onPruneSocial
   const socialCol = getCanopyColor(social.load);
   const physicalCol = getCanopyColor(physical.load);
   const errandsCol = getCanopyColor(errands.load);
-  const timeCol = getCanopyColor(time.load);
+  const overallStatus = treeState.overallStatus;
+  const isAnyDrooping =
+    mental.isDrooping || social.isDrooping || physical.isDrooping || errands.isDrooping || time.isDrooping;
+
+  // Dynamic tree asset selection based on health state
+  const getTreeSource = () => {
+    if (overallStatus === 'red') {
+      return require('../../../assets/cartoon_tree_wilting.png');
+    }
+    if (overallStatus === 'yellow' || isAnyDrooping) {
+      return require('../../../assets/cartoon_tree_tired.png');
+    }
+    // High vitality / green
+    return require('../../../assets/cartoon_tree_blooming.png');
+  };
+
+  const getStatusLabel = () => {
+    if (overallStatus === 'red') return { text: 'Overburdened · Needs Care', color: '#ba1a1a', bg: '#ffdad6' };
+    if (overallStatus === 'yellow' || isAnyDrooping) return { text: 'Strained · Gentle Pace', color: '#8c5000', bg: '#ffe082' };
+    return { text: 'Flourishing · In Equilibrium', color: '#1b5e20', bg: '#c8e6c9' };
+  };
+
+  const statusMeta = getStatusLabel();
 
   return (
     <View style={styles.viewportCard}>
-      {/* Sky Glow */}
-      <View style={styles.skyGlow} />
+      {/* Dynamic Sky Glow */}
+      <View
+        style={[
+          styles.skyGlow,
+          overallStatus === 'red' && styles.skyGlowRed,
+          overallStatus === 'yellow' && styles.skyGlowYellow,
+        ]}
+      />
+
+      {/* Dynamic Health State Banner */}
+      <View style={[styles.treeHealthTag, { backgroundColor: statusMeta.bg }]}>
+        <Text style={[styles.treeHealthTagText, { color: statusMeta.color }]}>
+          {statusMeta.text}
+        </Text>
+      </View>
 
       {/* Top Center Badge: Time Load */}
       <View style={styles.timeBadgeWrap}>
-        <View style={styles.pillBadge}>
+        <View style={[styles.pillBadge, time.status === 'red' && styles.pillBadgeAlert]}>
           <Text style={styles.badgeIcon}>⏳</Text>
           <Text style={styles.badgeText}>
             Time Load: <Text style={styles.badgeBold}>{(time.load * 0.08).toFixed(1)}h</Text>
@@ -53,7 +88,7 @@ export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState, onPruneSocial
           </Text>
         </View>
         <Text style={styles.badgeSub}>
-          {mental.load > 75 ? 'Cognitive Heavy' : 'Deep Focus'}
+          {mental.load > 75 ? 'Heavy Cognitive' : mental.load > 50 ? 'Moderate Work' : 'Clear Focus'}
         </Text>
       </View>
 
@@ -73,15 +108,29 @@ export const TreeAvatar: React.FC<TreeAvatarProps> = ({ treeState, onPruneSocial
             <Text style={styles.pruneBtnText}>✂️ Prune Load</Text>
           </TouchableOpacity>
         ) : (
-          <Text style={styles.badgeSub}>Restful Circle</Text>
+          <Text style={styles.badgeSub}>
+            {social.load > 50 ? 'Active Circle' : 'Quiet Rest'}
+          </Text>
         )}
       </View>
 
-      {/* Illustrated Cartoon Tree Graphic */}
+      {/* Illustrated Dynamic Cartoon Tree Graphic */}
       <View style={styles.treeContainer}>
+        {/* Dynamic Branch Aura Glow */}
+        <View
+          style={[
+            styles.treeAura,
+            overallStatus === 'red' && styles.treeAuraRed,
+            overallStatus === 'yellow' && styles.treeAuraYellow,
+          ]}
+        />
         <Image
-          source={require('../../../assets/cartoon_tree.png')}
-          style={styles.treeImage}
+          source={getTreeSource()}
+          style={[
+            styles.treeImage,
+            isAnyDrooping && styles.treeDrooping,
+            overallStatus === 'red' && styles.treeWiltingTilt,
+          ]}
           resizeMode="contain"
         />
       </View>
@@ -136,6 +185,26 @@ const styles = StyleSheet.create({
     right: 0,
     height: 120,
     backgroundColor: 'rgba(255, 221, 178, 0.25)',
+  },
+  skyGlowRed: {
+    backgroundColor: 'rgba(255, 180, 171, 0.35)',
+  },
+  skyGlowYellow: {
+    backgroundColor: 'rgba(255, 230, 160, 0.3)',
+  },
+  treeHealthTag: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BotanicalTokens.radii.full,
+    zIndex: 12,
+  },
+  treeHealthTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   timeBadgeWrap: {
     position: 'absolute',
@@ -231,14 +300,35 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#ffffff',
   },
+  treeAura: {
+    position: 'absolute',
+    width: 240,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(64, 145, 108, 0.08)',
+    top: 20,
+  },
+  treeAuraRed: {
+    backgroundColor: 'rgba(186, 26, 26, 0.12)',
+  },
+  treeAuraYellow: {
+    backgroundColor: 'rgba(196, 138, 63, 0.12)',
+  },
   treeContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
     height: 250,
+    position: 'relative',
   },
   treeImage: {
     width: 280,
     height: 230,
+  },
+  treeDrooping: {
+    transform: [{ translateY: 10 }, { scale: 0.96 }],
+  },
+  treeWiltingTilt: {
+    transform: [{ translateY: 16 }, { rotate: '-2.5deg' }, { scale: 0.92 }],
   },
 });
