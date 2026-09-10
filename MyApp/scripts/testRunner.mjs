@@ -32,6 +32,9 @@ function runFile(filePath) {
 const testFiles = [
   './src/core/load/calculateLoad.test.ts',
   './src/core/circuitBreaker/circuitBreakerEngine.test.ts',
+  './src/loadtree/planner.test.ts',
+  './src/loadtree/load.test.ts',
+  './src/loadtree/calendarDates.test.ts',
 ];
 
 let failed = false;
