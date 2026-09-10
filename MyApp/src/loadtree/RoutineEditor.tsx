@@ -87,7 +87,7 @@ export function DaysPicker({ days, onChange }: { days: string[]; onChange: (days
 const KINDS: { id: Commitment['kind']; title: string; sub: string }[] = [
   { id: 'fixed', title: 'Fixed', sub: 'Classes, work shifts. Never moved.' },
   { id: 'flexible', title: 'Flexible', sub: 'Gym, errands. May move to make room.' },
-  { id: 'recovery', title: 'Rest', sub: 'Sleep, downtime. Never used for study.' },
+  // { id: 'recovery', title: 'Rest', sub: 'Sleep, downtime. Never used for study.' },
 ];
 const AREAS: [Dimension, string][] = [['mental', 'Mental'], ['physical', 'Physical'], ['social', 'Social'], ['errands', 'Errands']];
 
@@ -118,10 +118,10 @@ export function RoutineEditor({ heading, study = false, kinds = ['fixed', 'flexi
       {open === 'end' && <TimeWheel label="End" value={r.end} onChange={end => set({ end })} />}
     </Group>
 
-    <Group>
+    {/* <Group>
       <Row label="Repeat" value={r.days.length ? daysLabel(r.days) : 'Never'} />
       <DaysPicker days={r.days} onChange={days => set({ days })} />
-    </Group>
+    </Group> */}
 
     {!study && kinds.length > 1 && <Group title="Type">
       {KINDS.filter(k => kinds.includes(k.id)).map(k => <Row key={k.id} label={k.title} sub={k.sub} onPress={() => set({ kind: k.id })}
