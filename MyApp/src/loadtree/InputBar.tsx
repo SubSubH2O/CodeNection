@@ -133,15 +133,28 @@ function VoiceSheet({ onClose, onDone }: { onClose: () => void; onDone: (seconds
   </Sheet>;
 }
 
-export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = false, onOpen, autoFocus = false }: {
+export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = false, onOpen, autoFocus = false, focusKey = 0 }: {
   onCapture: (c: Capture) => void;
   onNotice: (message: string) => void;
   /** 'launcher' shows the box but hands taps to onOpen, so the real typing happens in the conversation. */
   mode?: 'full' | 'launcher';
   hasHistory?: boolean;
-  onOpen?: () => void;
+  /** `focus` is true when the text area itself was tapped, which is when the keyboard should open. */
+  onOpen?: (focus: boolean) => void;
   autoFocus?: boolean;
+  /** Changing this puts the cursor in the box, e.g. after "Add more items". */
+  focusKey?: number;
 }) {
+  const input = useRef<TextInput>(null);
+  // Focus only when the key actually changes (a tap on the box), never just because the box re-appears.
+  const lastFocus = useRef(focusKey);
+  useEffect(() => {
+    if (focusKey === lastFocus.current) return;
+    lastFocus.current = focusKey;
+    // The field has only just appeared; Android ignores a focus request made in the same instant.
+    const timer = setTimeout(() => input.current?.focus(), Platform.OS === 'web' ? 0 : 300);
+    return () => clearTimeout(timer);
+  }, [focusKey]);
   const [text, setText] = useState('');
   const [voice, setVoice] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -166,12 +179,13 @@ export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = fals
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 2, backgroundColor: C.white, borderRadius: 26, borderWidth: 1, borderColor: '#E3EDE7', paddingHorizontal: 5, paddingVertical: 5, ...SOFT_SHADOW }}>
         {round('Attach a file or photo', 'plus', () => { Keyboard.dismiss(); setMenu(true); })}
         {mode === 'launcher' ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={hasHistory ? 'Open your conversation' : 'Plan something new'} onPress={onOpen}
+          <Pressable accessibilityRole="button" accessibilityLabel={hasHistory ? 'Open your conversation' : 'Plan something new'} onPress={() => onOpen?.(true)}
             style={{ flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 }}>
             <Txt muted style={{ fontSize: 15 }}>{hasHistory ? 'Continue planning…' : 'What needs doing?'}</Txt>
           </Pressable>
         ) : (
           <TextInput
+            ref={input}
             value={text}
             onChangeText={setText}
             onSubmitEditing={send}
@@ -186,7 +200,7 @@ export function InputBar({ onCapture, onNotice, mode = 'full', hasHistory = fals
           />
         )}
         {round('Record a voice note', 'mic', () => { Keyboard.dismiss(); setVoice(true); })}
-        {round(mode === 'launcher' ? 'Open your conversation' : 'Plan this task', 'send', mode === 'launcher' ? () => onOpen?.() : send, true)}
+        {round(mode === 'launcher' ? 'Open the chat' : 'Plan this task', 'send', mode === 'launcher' ? () => onOpen?.(false) : send, true)}
       </View>
 
       {menu && <AttachMenu onClose={() => setMenu(false)} onPick={c => { setMenu(false); onCapture(c); }} />}

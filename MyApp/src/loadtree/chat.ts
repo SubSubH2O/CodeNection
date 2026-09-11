@@ -1,4 +1,4 @@
-import { AppState, Commitment, Step, Task, WEEK, dateLabel, duration, remaining, time } from './model';
+import { AppState, Commitment, Step, Task, WEEK, addDays, dateLabel, duration, remaining, time } from './model';
 import { NOUNS } from './conflict';
 import { Outcome, Request } from './flow';
 import { planChanges } from './planChanges';
@@ -7,7 +7,9 @@ export type Role = 'user' | 'assistant';
 export interface Chip { label: string; send?: string; action?: 'calendar' | 'edit' }
 /** A task broken into steps, shown as one compact card instead of a paragraph. */
 export interface TaskCard { title: string; due: string; total: string; steps: { title: string; minutes: number }[] }
-export interface Message { id: string; role: Role; text: string; at: string; chips?: Chip[]; card?: TaskCard }
+/** What was understood from a brain-dump, shown as editable items before anything is planned. */
+export interface Review { task?: Task; commitment?: Commitment }
+export interface Message { id: string; role: Role; text: string; at: string; chips?: Chip[]; card?: TaskCard; review?: Review }
 
 /** Everything gathered so far. The optional AI extractor fills the same shape. */
 export interface Draft {
@@ -17,9 +19,18 @@ export interface Draft {
   steps?: Step[];
   commitment?: Commitment;
   event?: { title: string; kind: Commitment['kind']; dimension: Commitment['dimension']; date?: string };
-  awaiting?: 'deadline' | 'effort' | 'day' | 'time' | 'confirm';
+  awaiting?: 'deadline' | 'effort' | 'day' | 'time' | 'confirm' | 'team' | 'stage' | 'scope';
+  /** How big the student is aiming — drives LoadTree's own estimate for long projects. */
+  scope?: 'simple' | 'prototype' | 'polished';
+  /** The student set the hours on purpose (a correction), so LoadTree's estimate does not override them. */
+  userSet?: boolean;
+  /** For long projects: working alone or with others, and how far along it already is. */
+  team?: 'solo' | 'team';
+  stage?: 'fresh' | 'idea' | 'building';
   /** Built and shown, waiting for the student to say it looks right. */
   proposal?: Request;
+  /** Subtasks the student unticked in the review; they are left out of the plan. */
+  skip?: string[];
 }
 /** One exchange. `ready` means the planner has enough to act on. */
 export interface Turn { messages: Message[]; draft: Draft; ready?: Request }
@@ -30,16 +41,14 @@ export const say = (role: Role, text: string, extra: Partial<Message> = {}): Mes
 
 const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DAY = 'monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|tonight';
-const TASK_WORDS = /\b(assignment|report|essay|paper|thesis|dissertation|project|coursework|homework|revision|revise|revising|exam|midterm|quiz|test|presentation|slides|study|studying|reading|problem set|pset|write-?up|portfolio)\b/i;
+const TASK_WORDS = /\b(assignment|report|essay|paper|thesis|dissertation|project|coursework|homework|revision|revise|revising|exam|midterm|quiz|test|presentation|slides|study|studying|reading|problem set|pset|write-?up|portfolio|hackathon|competition|contest)\b/i;
 const CHATTER = /^(hi|hello|hey|yo|thanks|thank you|ok|okay|cool|nice|great|sure)\b[\s!.]*$/i;
 
 const STARTERS: Chip[] = [
-  // Sized so both examples work in either order: small enough to leave the
-  // gym-or-Monday dilemma intact, and still fits after either choice.
-  { label: 'Lab report due Friday, 1 hour', send: 'Lab report due Friday, about 1 hour' },
-  { label: 'Work Friday 6pm to 10pm', send: 'I have work Friday from 6pm to 10pm' },
+  // The demo: a long-term project, due in a fortnight, that needs a few questions before it can be planned.
+  { label: 'Joining a hackathon, due in 2 weeks', send: 'I’m joining a hackathon and the submission is due in two weeks' },
 ];
-const HELP = 'Tell me about a deadline or a commitment — for example “Essay due Thursday, about 3 hours” or “Work Friday 6pm to 10pm”.';
+const HELP = 'Tell me what’s coming up — for example “I’m joining a hackathon, due in two weeks” or “Work Friday 6pm to 10pm”.';
 
 export const opening = (): Message[] => [
   say('assistant', 'What’s coming up?', { chips: STARTERS }),
@@ -89,7 +98,8 @@ export function readRange(text: string): { start: number; end: number; index: nu
 /** "about 5 hours", "1h 30m", "90 mins", "3-4 hours". A bare number only counts as an answer. */
 export function minutesFrom(text: string, answer = false): number | undefined {
   const t = text.toLowerCase();
-  const snap = (m: number) => Math.min(1440, Math.max(15, Math.round(m / 15) * 15));
+  // Up to 100 hours: long projects are measured in tens of hours, not minutes.
+  const snap = (m: number) => Math.min(6000, Math.max(15, Math.round(m / 15) * 15));
   const span = /(\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(\d+(?:\.\d+)?)\s*(?:h\b|hrs?\b|hours?\b)/.exec(t);
   if (span) return snap(((Number(span[1]) + Number(span[2])) / 2) * 60);
   const hours = /(\d+(?:\.\d+)?)\s*(?:h\b|hrs?\b|hours?\b)/.exec(t);
@@ -109,6 +119,13 @@ export function minutesFrom(text: string, answer = false): number | undefined {
 /** In a sentence a day must be tied to "due", "by" or "before" to be a deadline; as an answer, any day counts. */
 export function deadlineFrom(text: string, now: string, answer = false): string | undefined {
   const lower = text.toLowerCase();
+  // Relative deadlines: "in two weeks", "after 10 days", "next week".
+  const relative = /\b(?:in|after|within)\s+(a|one|two|three|four|\d+)\s+(week|day)s?\b/.exec(lower);
+  if (relative) {
+    const n = ({ a: 1, one: 1, two: 2, three: 3, four: 4 } as Record<string, number>)[relative[1]] ?? Number(relative[1]);
+    return `${addDays(now.slice(0, 10), relative[2] === 'week' ? n * 7 : n)}T23:59`;
+  }
+  if (/\bnext week\b/.test(lower)) return `${addDays(now.slice(0, 10), 7)}T23:59`;
   const hit = new RegExp(`\\b(?:due|by|before|deadline(?: is)?|until)\\s+(?:on\\s+|this\\s+)?(${DAY})\\b`).exec(lower)
     ?? (answer ? new RegExp(`\\b(${DAY})\\b`).exec(lower) : new RegExp(`\\bon\\s+(?:this\\s+)?(${DAY})\\b`).exec(lower));
   if (!hit) return undefined;
@@ -129,8 +146,9 @@ export function deadlineFrom(text: string, now: string, answer = false): string 
 
 /** "I need to finish my database assignment by Friday, probably 3 hours" → "Database assignment". */
 export function cleanTitle(input: string): string {
+  if (/\bhackathon\b/i.test(input)) return 'Hackathon project';
   let t = ` ${input} `;
-  const cut = t.search(/\b(?:due|by|before|deadline|until)\b|,\s*(?:about|around|roughly|probably|maybe)\b|\b(?:about|around|roughly|probably|maybe)\s+\d|\b\d+(?:\.\d+)?\s*(?:h|hrs?|hours?|mins?|minutes?)\b|\b(?:and|but)\s+(?:i\s+)?(?:have|got|also)\b|\b(?:on|this|next)\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i);
+  const cut = t.search(/\b(?:due|by|before|deadline|until)\b|,\s*(?:about|around|roughly|probably|maybe)\b|\b(?:about|around|roughly|probably|maybe)\s+\d|\b\d+(?:\.\d+)?\s*(?:h|hrs?|hours?|mins?|minutes?)\b|\b(?:and|but)\s+(?:i\s+)?(?:have|got|also)\b|\b(?:(?:on|this|next)\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tomorrow|tonight)\b/i);
   if (cut > 0) t = t.slice(0, cut);
   t = t.replace(/^\s*(?:i\s+)?(?:really\s+)?(?:need|have|got|must|want|should)\s+to\s+/i, ' ')
     .replace(/^\s*(?:finish|complete|do|work on|start on|start|get)\s+/i, ' ')
@@ -141,22 +159,59 @@ export function cleanTitle(input: string): string {
   return t ? `${t[0].toUpperCase()}${t.slice(1)}`.slice(0, 48) : 'New task';
 }
 
-const TEMPLATES: { match: RegExp; steps: [string, number][]; typical: number }[] = [
+/** Step name, relative weight, and whether it is optional scope. `long` marks multi-week projects. */
+type Template = { match: RegExp; steps: [string, number, boolean?][]; typical: number; long?: boolean };
+const TEMPLATES: Template[] = [
+  {
+    // 22h for a solo working prototype from scratch — before scope, team and progress adjust it.
+    match: /hackathon|competition|contest/i, long: true, typical: 1320,
+    steps: [['Understand the brief & rules', 5], ['Choose the problem & idea', 8], ['Plan features & design', 10], ['Build the core prototype', 40],
+      ['Polish & test', 12, true], ['Make the pitch deck', 10], ['Record the demo video', 8, true], ['Final checks & submit', 4]],
+  },
   { match: /database|sql|schema/i, steps: [['Research schema', 20], ['Build the database', 35], ['Write SQL queries', 30], ['Final review', 15]], typical: 180 },
   { match: /presentation|slides|pitch/i, steps: [['Research the topic', 30], ['Build the slides', 45], ['Rehearse', 25]], typical: 180 },
-  { match: /\blab\b|experiment/i, steps: [['Prepare the method', 25], ['Analyse the results', 35], ['Write it up', 40]], typical: 120 },
+  { match: /\blab\b|experiment/i, steps: [['Read brief and requirements', 15], ['Research and gather information', 35], ['Write report', 35], ['Proofread and finalise', 15]], typical: 180 },
   { match: /revis|exam|midterm|quiz|\btest\b|study/i, steps: [['Review your notes', 30], ['Practice questions', 30], ['Timed past paper', 25], ['Final recap', 15]], typical: 240 },
   { match: /report|essay|paper|thesis|dissertation|write-?up/i, steps: [['Gather sources', 20], ['Outline the argument', 15], ['Write the draft', 45], ['Edit & submit', 20]], typical: 300 },
   { match: /reading|chapter/i, steps: [['Skim and plan', 20], ['Read closely', 60], ['Make notes', 20]], typical: 120 },
   { match: /project|assignment|coursework|homework|problem set|pset/i, steps: [['Plan the approach', 25], ['Do the main work', 55], ['Check & submit', 20]], typical: 180 },
 ];
-const FALLBACK = { match: /./, steps: [['Get started', 25], ['Main work', 55], ['Wrap up', 20]] as [string, number][], typical: 120 };
+const FALLBACK: Template = { match: /./, steps: [['Get started', 25], ['Main work', 55], ['Wrap up', 20]], typical: 120 };
 const templateFor = (title: string) => TEMPLATES.find(t => t.match.test(title)) ?? FALLBACK;
 const taskId = (state: AppState, title: string) => `task-${state.revision}-${title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24)}`;
 
 /** Splits the effort across the task's natural steps in 15-minute units, with nothing lost to rounding. */
-export function buildTask(state: AppState, title: string, deadline: string, minutes: number): Task {
-  const { steps } = templateFor(title);
+/** Long projects adapt to the answers: skip what is already done, add coordination for a team. */
+function profiledSteps(template: Template, profile: Pick<Draft, 'team' | 'stage'>): Template['steps'] {
+  let steps = template.steps;
+  if (!template.long) return steps;
+  if (profile.stage === 'idea') steps = steps.filter(([name]) => !/problem & idea/.test(name));
+  if (profile.stage === 'building') steps = steps.filter(([name]) => !/brief|problem & idea|Plan features/.test(name));
+  if (profile.team === 'team') steps = [['Split roles with your team', 4], ...steps];
+  return steps;
+}
+
+// Even a simple team demo that is already underway is real work (~12h+); a hackathon is never a small job.
+const SCOPE: Record<NonNullable<Draft['scope']>, number> = { simple: 0.8, prototype: 1, polished: 1.36 };
+const TEAM_SHARE = 0.9;
+
+/**
+ * LoadTree's own estimate — the point of the app, since students underestimate their workload.
+ * Known kinds of work use their typical size; long projects scale with scope, team and progress.
+ * Unknown work returns undefined, and only then is the student asked how long it takes.
+ */
+export function estimateFor(title: string, profile: Pick<Draft, 'team' | 'stage' | 'scope'> = {}): number | undefined {
+  const template = templateFor(title);
+  if (template === FALLBACK) return undefined;
+  if (!template.long) return template.typical;
+  const weight = (steps: Template['steps']) => steps.reduce((sum, [, w]) => sum + w, 0);
+  const share = weight(profiledSteps(template, profile)) / weight(template.steps);
+  const raw = template.typical * SCOPE[profile.scope ?? 'prototype'] * (profile.team === 'team' ? TEAM_SHARE : 1) * share;
+  return Math.max(60, Math.round(raw / 15) * 15);
+}
+
+export function buildTask(state: AppState, title: string, deadline: string, minutes: number, profile: Pick<Draft, 'team' | 'stage'> = {}): Task {
+  const steps = profiledSteps(templateFor(title), profile);
   const units = Math.max(1, Math.round(minutes / 15));
   const count = Math.min(steps.length, units);
   // Tiny tasks keep their last step so they still end with a finish.
@@ -169,7 +224,7 @@ export function buildTask(state: AppState, title: string, deadline: string, minu
   for (let k = 0; left > 0; k++, left--) alloc[byFraction[k % byFraction.length].i]++;
   while (left < 0) { const i = alloc.indexOf(Math.max(...alloc)); alloc[i]--; left++; }
   const id = taskId(state, title);
-  return { id, title, deadline, demand: 'high', steps: chosen.map(([name], i) => ({ id: `${id}-s${i}`, title: name, estimate: alloc[i] * 15, remaining: alloc[i] * 15 })) };
+  return { id, title, deadline, demand: 'high', steps: chosen.map(([name, , optional], i) => ({ id: `${id}-s${i}`, title: name, estimate: alloc[i] * 15, remaining: alloc[i] * 15, ...(optional ? { optional: true } : {}) })) };
 }
 
 function fromSteps(state: AppState, title: string, deadline: string, steps: Step[]): Task {
@@ -215,9 +270,11 @@ function dayChips(state: AppState): Chip[] {
 }
 const effortLabel = (m: number) => (m % 60 ? `${m} minutes` : `${m / 60} ${m === 60 ? 'hour' : 'hours'}`);
 function effortChips(title: string, below?: number): Chip[] {
+  const long = !!templateFor(title).long;
   const values = below
-    ? [30, 60, 90, 120, 180, 240, 300].filter(v => v < below).slice(-3)
-    : [...new Set([60, 120, templateFor(title).typical])].sort((a, b) => a - b);
+    ? (long ? [480, 600, 720, 900, 1200] : [30, 60, 90, 120, 180, 240, 300]).filter(v => v < below).slice(-3)
+    // In the sample fortnight: 15h fits, 22h needs a trade-off, 30h is honestly too much.
+    : long ? [900, 1320, 1800] : [...new Set([60, 120, templateFor(title).typical])].sort((a, b) => a - b);
   return values.map(v => ({ label: effortLabel(v), send: effortLabel(v) }));
 }
 const timeChips = (): Chip[] => ['9am to 5pm', '2pm to 6pm', '6pm to 10pm'].map(t => ({ label: t, send: t }));
@@ -231,7 +288,13 @@ function nextQuestion(state: AppState, d: Draft): { awaiting: NonNullable<Draft[
   }
   if (d.title && !existingTask(state, d.title)) {
     if (!d.deadline) return { awaiting: 'deadline', message: say('assistant', `Got it — “${d.title}”. When is it due?`, { chips: dayChips(state) }) };
-    if (!d.minutes && !d.steps?.length) return { awaiting: 'effort', message: say('assistant', `Roughly how long will “${d.title}” take? A guess is fine.`, { chips: effortChips(d.title) }) };
+    // Long projects need a little more context before they can be broken down well.
+    const long = !!templateFor(d.title).long && !d.steps?.length;
+    if (long && !d.team) return { awaiting: 'team', message: say('assistant', `Nice — due ${dateLabel(d.deadline)}. Are you doing it solo or with a team?`, { chips: [{ label: 'Solo', send: 'Solo' }, { label: 'With a team', send: 'With a team' }] }) };
+    if (long && !d.stage) return { awaiting: 'stage', message: say('assistant', 'Where are you at right now?', { chips: [{ label: 'Starting from scratch', send: 'Starting from scratch' }, { label: 'I have an idea', send: 'I have an idea' }, { label: 'Already building', send: 'Already building' }] }) };
+    if (long && !d.scope) return { awaiting: 'scope', message: say('assistant', 'How big is the build you’re aiming for?', { chips: [{ label: 'A simple demo', send: 'A simple demo' }, { label: 'A working prototype', send: 'A working prototype' }, { label: 'A polished full app', send: 'A polished full app' }] }) };
+    // Only work LoadTree cannot size on its own needs the student's guess.
+    if (!d.minutes && !d.steps?.length && estimateFor(d.title) === undefined) return { awaiting: 'effort', message: say('assistant', `Roughly how long will “${d.title}” take? A guess is fine.`, { chips: effortChips(d.title) }) };
   }
   return null;
 }
@@ -242,17 +305,52 @@ export function settle(state: AppState, d: Draft): Turn {
   if (ask) return { draft: { ...d, awaiting: ask.awaiting }, messages: [ask.message] };
 
   const existing = d.title ? existingTask(state, d.title) : undefined;
+  // LoadTree sizes the work itself. A guess well below its estimate is the underestimate the app exists to catch.
+  const estimate = d.title && !d.steps?.length ? estimateFor(d.title, d) : undefined;
+  const underestimated = !!(estimate && d.minutes && !d.userSet && d.minutes < estimate * 0.75);
+  const minutes = estimate && (!d.minutes || underestimated) ? estimate : d.minutes;
   const task = d.title && !existing && d.deadline
-    ? (d.steps?.length ? fromSteps(state, d.title, d.deadline, d.steps) : buildTask(state, d.title, d.deadline, d.minutes!))
+    ? (d.steps?.length ? fromSteps(state, d.title, d.deadline, d.steps) : buildTask(state, d.title, d.deadline, minutes!, { team: d.team, stage: d.stage }))
     : undefined;
   const messages: Message[] = [];
   if (existing) messages.push(say('assistant', `${existing.title} is already on your calendar — ${duration(remaining(existing))} left, due ${dateLabel(existing.deadline)}.`));
-  if (task) messages.push(say('assistant', `Breaking “${task.title}” into ${task.steps.length} steps.`, { card: cardFor(task) }));
-  if (d.commitment) messages.push(say('assistant', `${d.commitment.title} · ${dateLabel(d.commitment.date, true)}, ${time(d.commitment.start)}–${time(d.commitment.end)}.`));
+  if (task && !d.steps?.length && minutes) {
+    const days = Math.round((Date.parse(`${task.deadline.slice(0, 10)}T12:00:00Z`) - Date.parse(`${state.now.slice(0, 10)}T12:00:00Z`)) / 86400000);
+    const perWeek = Math.round(minutes / Math.max(1, days / 7) / 15) * 15;
+    if (underestimated) messages.push(say('assistant', `You said about ${duration(d.minutes!)}, but work like this usually takes nearer ${duration(minutes)} — so I’ve planned for that. You can adjust the steps.`));
+    else if (estimate && !d.minutes) messages.push(say('assistant', days > 7
+      ? `From what you’ve told me, I estimate about ${duration(minutes)} of work — roughly ${duration(perWeek)} a week until ${dateLabel(task.deadline)}.`
+      : `I estimate about ${duration(minutes)} for this.`));
+  }
   if (!task && !d.commitment) return { draft: {}, messages: messages.length ? messages : [say('assistant', HELP, { chips: STARTERS })] };
-  // Nothing is planned until the student agrees with what was understood.
-  messages.push(say('assistant', task ? 'Does this look right?' : 'Shall I fit it in?', { chips: confirmChips(!!task) }));
-  return { draft: { proposal: { task, commitment: d.commitment }, awaiting: 'confirm' }, messages };
+  // Everything understood becomes one set of editable items. Nothing is planned until the student agrees.
+  const count = (task ? 1 : 0) + (d.commitment ? 1 : 0);
+  messages.push(say('assistant', count > 1 ? `I’ve found ${count} items` : 'Here’s what I understood', { review: { task, commitment: d.commitment } }));
+  return { draft: { proposal: { task, commitment: d.commitment }, awaiting: 'confirm', team: d.team, stage: d.stage, scope: d.scope }, messages };
+}
+
+/** A piece of a brain-dump that stands on its own: it names a task, a commitment, or a time. */
+const standalone = (s: string) => TASK_WORDS.test(s) || NOUNS.some(n => n.match.test(s)) || !!readRange(s);
+
+/**
+ * Splits a brain-dump like "Lab report Friday about 3 hours, and work Friday 6–10pm" into its items.
+ * Fragments that cannot stand alone ("probably 3 hours") stay with the item before them.
+ */
+export function readItems(state: AppState, input: string): Draft {
+  const segments: string[] = [];
+  for (const part of input.split(/\s*(?:;|,?\s+and\s+|,)\s*/i).filter(Boolean)) {
+    if (segments.length && !standalone(part)) segments[segments.length - 1] += ` ${part}`;
+    else segments.push(part);
+  }
+  if (segments.length < 2) return fresh(state, input);
+  const drafts = segments.map(s => fresh(state, s));
+  const task = drafts.find(d => d.title);
+  const event = drafts.find(d => d.commitment || d.event);
+  if (!task && !event) return fresh(state, input);
+  return {
+    ...(task ? { title: task.title, deadline: task.deadline, minutes: task.minutes } : {}),
+    ...(event?.commitment ? { commitment: event.commitment } : event?.event ? { event: event.event } : {}),
+  };
 }
 
 const confirmChips = (task: boolean): Chip[] => task
@@ -279,7 +377,8 @@ function fresh(state: AppState, input: string): Draft {
   const words = input.split(/\s+/).filter(Boolean).length;
   if (TASK_WORDS.test(input) || (!eventIntent && words >= 2 && !CHATTER.test(input))) {
     d.title = cleanTitle(input);
-    d.deadline = deadlineFrom(input, state.now);
+    // "Lab report Friday" means due Friday — unless the day belongs to a time range ("work Friday 6–10pm").
+    d.deadline = deadlineFrom(input, state.now) ?? (range ? undefined : deadlineFrom(input, state.now, true));
     d.minutes = minutesFrom(input);
   }
   return d;
@@ -295,10 +394,17 @@ export function converse(state: AppState, draft: Draft, text: string): Turn {
   switch (draft.awaiting) {
     case 'confirm': {
       const { task, commitment } = draft.proposal ?? {};
-      if (YES.test(input)) return { draft: {}, messages: [], ready: draft.proposal };
+      if (YES.test(input)) {
+        // Unticked subtasks are left out; a task with nothing left is dropped.
+        const kept = task && { ...task, steps: task.steps.filter(s => !draft.skip?.includes(s.id)) };
+        return { draft: {}, messages: [], ready: { task: kept && kept.steps.length ? kept : undefined, commitment } };
+      }
+      // Something that names a new item ("work Friday 6–10pm") is an addition, not a correction.
+      if (standalone(input)) break;
       // Corrections to what was understood: a new effort, a new deadline, a new time.
       const minutes = task && minutesFrom(input, true);
-      if (task && minutes) return settle(state, { title: task.title, deadline: task.deadline, minutes, commitment });
+      // A correction is the student's call: their number stands.
+      if (task && minutes) return settle(state, { title: task.title, deadline: task.deadline, minutes, commitment, team: draft.team, stage: draft.stage, scope: draft.scope, userSet: true });
       const deadline = task && deadlineFrom(input, state.now, true);
       if (task && deadline) return settle(state, { title: task.title, deadline, steps: task.steps, commitment });
       if (commitment && !task) {
@@ -309,6 +415,21 @@ export function converse(state: AppState, draft: Draft, text: string): Turn {
       }
       break;
     }
+    case 'team': {
+      const team = /\b(team|group|friends|together|with|of us)\b/i.test(input) ? 'team' : /\b(solo|alone|myself|just me|on my own)\b/i.test(input) ? 'solo' : undefined;
+      if (team) return settle(state, { ...draft, team, awaiting: undefined });
+      break;
+    }
+    case 'stage': {
+      const stage = /\b(build|building|started|halfway|progress|prototype)\b/i.test(input) ? 'building' : /\bidea\b/i.test(input) ? 'idea' : /\b(scratch|nothing|not started|fresh|zero)\b/i.test(input) ? 'fresh' : undefined;
+      if (stage) return settle(state, { ...draft, stage, awaiting: undefined });
+      break;
+    }
+    case 'scope': {
+      const scope = /\b(polish|polished|full|complete|ambitious|production)\b/i.test(input) ? 'polished' : /\b(simple|basic|small|mvp|demo)\b/i.test(input) ? 'simple' : /\b(prototype|working|standard|normal)\b/i.test(input) ? 'prototype' : undefined;
+      if (scope) return settle(state, { ...draft, scope, awaiting: undefined });
+      break;
+    }
     case 'deadline': {
       const deadline = deadlineFrom(input, state.now, true);
       if (deadline) return settle(state, { ...draft, deadline, awaiting: undefined });
@@ -316,7 +437,7 @@ export function converse(state: AppState, draft: Draft, text: string): Turn {
     }
     case 'effort': {
       const minutes = minutesFrom(input, true);
-      if (minutes) return settle(state, { ...draft, minutes, steps: undefined, awaiting: undefined });
+      if (minutes) return settle(state, { ...draft, minutes, steps: undefined, awaiting: undefined, userSet: true });
       break;
     }
     case 'day': {
@@ -346,7 +467,15 @@ export function converse(state: AppState, draft: Draft, text: string): Turn {
     const again = nextQuestion(state, draft);
     return { draft, messages: [again?.message ?? say('assistant', HELP)] };
   }
-  return settle(state, fresh(state, input));
+  const next = readItems(state, input);
+  // "Add more items": new things join what is already under review instead of replacing it.
+  if (draft.awaiting === 'confirm' && draft.proposal) {
+    const { task, commitment } = draft.proposal;
+    const keepTask = task && !next.title ? { title: task.title, deadline: task.deadline, steps: task.steps } : {};
+    const keepEvent = commitment && !next.commitment && !next.event ? { commitment } : {};
+    return settle(state, { ...keepTask, ...keepEvent, ...next });
+  }
+  return settle(state, next);
 }
 
 /** What the assistant says once the planner has decided. The calendar does the showing. */
@@ -361,12 +490,12 @@ export function respond(state: AppState, outcome: Outcome): { message: Message; 
     const added = planChanges(state, outcome.plan).added;
     const days = [...new Set(added.map(b => b.date))].sort();
     const where = !days.length ? '' : days.length === 1 ? ` on ${dateLabel(days[0])}` : ` across ${dateLabel(days[0])} – ${dateLabel(days[days.length - 1])}`;
-    return { draft: {}, message: say('assistant', `It fits without moving anything — ${added.length} study ${added.length === 1 ? 'block' : 'blocks'}${where}.`, { chips: view }) };
+    return { draft: {}, message: say('assistant', `It fits without moving anything — ${added.length} focus ${added.length === 1 ? 'block' : 'blocks'}${where}.`, { chips: view }) };
   }
   if (outcome.kind === 'options') {
     const cause = outcome.conflict?.task
       ? `${commitment!.title} lands on ${duration(outcome.conflict.displacedMinutes)} of ${outcome.conflict.task.title}.`
-      : 'Your study time is already full, so something has to give.';
+      : 'Your focus time is already full, so something has to give.';
     return { draft: {}, message: say('assistant', `${cause} I found ${ways(outcome.options.length)} to rebalance.`, { chips: [{ label: 'Compare on calendar', action: 'calendar' }] }) };
   }
   if (outcome.kind === 'clash') {

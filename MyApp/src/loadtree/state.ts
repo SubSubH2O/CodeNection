@@ -1,4 +1,4 @@
-import { AppState, Candidate, Commitment, PlanData, Preferences, Task, stamp, overlaps, remaining, validDate, taskErrors } from './model';
+import { AppState, Candidate, Commitment, PlanData, Preferences, Task, planState, stamp, overlaps, remaining, validDate, taskErrors } from './model';
 import { emptyWeek, makeDemo } from './demo';
 import { validatePlan } from './planner';
 
@@ -19,8 +19,8 @@ export type Action =
 export function setupErrors(preferences: Preferences, commitments: Commitment[]): string[] {
   const errors: string[] = [];
   if (!preferences.name.trim()) errors.push('Enter your name.');
-  if (!Number.isInteger(preferences.dailyLimit) || preferences.dailyLimit < 15 || preferences.dailyLimit > 720 || preferences.dailyLimit % 15) errors.push('Choose a daily study limit in 15-minute increments, from 15 to 720 minutes.');
-  if (!preferences.availability.length) errors.push('Add at least one study window.');
+  if (!Number.isInteger(preferences.dailyLimit) || preferences.dailyLimit < 15 || preferences.dailyLimit > 720 || preferences.dailyLimit % 15) errors.push('Choose a daily focus limit in 15-minute increments, from 15 to 720 minutes.');
+  if (!preferences.availability.length) errors.push('Add some focus time.');
   for (const window of [...preferences.availability, ...commitments, ...commitments.flatMap(c => c.moveWindows || [])]) {
     if (!validDate(window.date) || !Number.isInteger(window.start) || !Number.isInteger(window.end) || window.start < 0 || window.end > 1440 || window.start >= window.end || window.start % 15 || window.end % 15) errors.push('Use valid dates and time ranges in 15-minute increments.');
   }
@@ -33,7 +33,7 @@ export function setupErrors(preferences: Preferences, commitments: Commitment[])
       errors.push('Two commitments overlap. Adjust their times.');
     }
   });
-  preferences.availability.forEach((w, i) => { if (preferences.availability.slice(i + 1).some(other => overlaps(w, other))) errors.push('Study windows overlap. Combine or adjust them.'); });
+  preferences.availability.forEach((w, i) => { if (preferences.availability.slice(i + 1).some(other => overlaps(w, other))) errors.push('Focus times overlap. Combine or adjust them.'); });
   return [...new Set(errors)];
 }
 export function snapshot(state: AppState): PlanData {
@@ -55,8 +55,9 @@ export function reducer(state: AppState, action: Action): AppState {
   }
   if (action.type === 'approve') {
     const plan = action.plan;
-    if (plan.sourceRevision !== state.revision || validatePlan(state, plan.tasks, plan.commitments, plan.blocks).length) return state;
-    return updated({ tasks: plan.tasks, commitments: plan.commitments, blocks: plan.blocks, undo: snapshot(state) });
+    // A plan that finds more time is checked against, and saves, its new routine.
+    if (plan.sourceRevision !== state.revision || validatePlan(planState(state, plan), plan.tasks, plan.commitments, plan.blocks).length) return state;
+    return updated({ tasks: plan.tasks, commitments: plan.commitments, blocks: plan.blocks, ...(plan.preferences ? { preferences: plan.preferences } : {}), undo: snapshot(state) });
   }
   if (action.type === 'addCommitment') {
     const next = [...state.commitments, action.commitment];

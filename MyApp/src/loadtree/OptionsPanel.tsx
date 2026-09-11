@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, PanResponder, Platform, Pressable, ScrollView, View } from 'react-native';
-import { AppState, Candidate, dateLabel, duration, time } from './model';
+import { AppState, Candidate, dateLabel, duration, planState, time } from './model';
 import { Conflict, optionMetrics } from './conflict';
 import { planChanges } from './planChanges';
 import { validatePlan } from './planner';
@@ -32,11 +32,11 @@ export function OptionsPanel({ state, conflict, subject, options, index, day, he
     { label: 'Things moved', value: String(metrics.moved), raw: metrics.moved, values: all.map(m => m.moved), higher: false },
     { label: 'Protected time', value: metrics.protectedKept ? 'Kept' : 'Lost', raw: metrics.protectedKept ? 1 : 0, values: all.map(m => m.protectedKept ? 1 : 0), higher: true },
     { label: 'Conflicts left', value: String(metrics.conflictsLeft), raw: metrics.conflictsLeft, values: all.map(m => m.conflictsLeft), higher: false },
-    { label: 'Study-free days', value: String(metrics.freeDays), raw: metrics.freeDays, values: all.map(m => m.freeDays), higher: true },
+    { label: 'Free days', value: String(metrics.freeDays), raw: metrics.freeDays, values: all.map(m => m.freeDays), higher: true },
     { label: 'Longest sitting', value: metrics.longestSitting ? duration(metrics.longestSitting) : '—', raw: metrics.longestSitting, values: all.map(m => m.longestSitting), higher: false },
   ].filter(row => new Set(row.values).size > 1 || row.label === 'Deadline buffer');
   const stale = option.sourceRevision !== state.revision;
-  const invalid = validatePlan(state, option.tasks, option.commitments, option.blocks).length > 0;
+  const invalid = validatePlan(planState(state, option), option.tasks, option.commitments, option.blocks).length > 0;
   return <Animated.View accessibilityLabel="Plan options" style={{ height, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 14, gap: 8, backgroundColor: C.white, ...LIFT_SHADOW, transform: [{ translateY: lift }] }}>
     <View style={{ alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: C.line }} />
     <View style={{ gap: 7 }}>

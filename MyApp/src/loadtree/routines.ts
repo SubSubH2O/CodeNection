@@ -1,4 +1,4 @@
-import { Commitment, Dimension, WEEK } from './model';
+import { Commitment, Dimension, WEEK, weekdayOf, weekly } from './model';
 
 /** Anything that happens at a set time on chosen days: a study window, a class, sleep. */
 export interface Routine {
@@ -36,9 +36,10 @@ export function commitmentsFor(old: Commitment[], r: Routine): Commitment[] {
   const base = old[0]?.id ? old[0].id.replace(/-(eve|morn)$/, '') : `event-${Date.now()}`;
   if (r.end < r.start) {
     const result: Commitment[] = [];
-    WEEK.filter(d => r.days.includes(d)).forEach(date => {
+    const targetDays = r.days.length > 0 && r.days.some(d => WEEK.includes(d)) ? WEEK.filter(d => r.days.includes(d)) : [...new Set(r.days)].sort();
+    targetDays.forEach(date => {
       const idx = WEEK.indexOf(date);
-      const nextDate = WEEK[(idx + 1) % WEEK.length];
+      const nextDate = idx >= 0 ? WEEK[(idx + 1) % WEEK.length] : date;
       const prevEve = old.find(o => o.date === date && o.end === 1440);
       const prevMorn = old.find(o => o.date === nextDate && o.start === 0);
 
@@ -69,7 +70,8 @@ export function commitmentsFor(old: Commitment[], r: Routine): Commitment[] {
     return result;
   }
   const length = r.end - r.start;
-  return WEEK.filter(d => r.days.includes(d)).map(date => {
+  const targetDays = r.days.length > 0 && r.days.some(d => WEEK.includes(d)) ? WEEK.filter(d => r.days.includes(d)) : [...new Set(r.days)].sort();
+  return targetDays.map(date => {
     const prev = old.find(o => o.date === date) ?? old[0];
     const keepMove = r.kind === 'flexible' && prev?.moveWindows?.length && prev.moveWindows[0].end - prev.moveWindows[0].start === length;
     return {

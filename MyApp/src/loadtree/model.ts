@@ -16,7 +16,8 @@ export interface Preferences {
   avoidAfterShift: boolean;
   availability: Window[];
 }
-export interface Step { id: string; title: string; estimate: number; remaining: number }
+/** `optional` marks scope that can be cut when time runs short (e.g. a demo video). */
+export interface Step { id: string; title: string; estimate: number; remaining: number; optional?: boolean }
 export interface Task {
   id: string;
   title: string;
@@ -47,9 +48,21 @@ export interface Candidate {
   tasks: Task[];
   sourceRevision: number;
   movedId?: string;
+  /** A plan that finds more time (weekend sessions, longer days) also changes the weekly routine. */
+  preferences?: Preferences;
 }
+/** The state a plan should be checked against: its own routine, if it brings one. */
+export const planState = <S extends { preferences: Preferences }>(state: S, plan: Pick<Candidate, 'preferences'>): S =>
+  (plan.preferences ? { ...state, preferences: plan.preferences } : state);
 export interface PlanningResult { candidates: Candidate[]; required: number; available: number; shortfall: number }
 export const WEEK = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-10', '2026-09-11', '2026-09-12', '2026-09-13'];
+export const addDays = (date: string, n: number) => { const d = new Date(`${date}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+/** How many weeks ahead the plan reaches, so projects due in a fortnight still have somewhere to go. */
+export const HORIZON_WEEKS = 3;
+/** A weekly routine's dates across the planning horizon: the day itself, then the same weekday after. */
+export const weekly = (date: string) => Array.from({ length: HORIZON_WEEKS }, (_, k) => addDays(date, k * 7));
+/** 0 = Monday … 6 = Sunday. */
+export const weekdayOf = (date: string) => (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
 export const time = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 export const stamp = (w: Window, end = false) => `${w.date}T${time(end ? w.end : w.start)}`;
 export const duration = (minutes: number) => minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ''}`;

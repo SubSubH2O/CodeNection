@@ -1,10 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Commitment, Dimension, WEEK, daysLabel, duration, time, weekday } from './model';
+import { Commitment, Dimension, WEEK, duration, time, weekdayOf, weekly } from './model';
 import { C, Chip, Group, Icon, Row, Sheet, Txt } from './ui';
 
 import { Routine } from './routines';
-export { daysLabel, weekday };
+
+const weekday = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short' });
+/** "Every day", "Weekdays", or "Mon, Wed". */
+export function daysLabel(days: string[]): string {
+  // Routines repeat weekly, so a day counts if any of its weeks is chosen.
+  const sorted = WEEK.filter(d => days.some(x => weekdayOf(x) === weekdayOf(d)));
+  if (sorted.length === 7) return 'Every day';
+  if (sorted.length === 5 && sorted.every(d => WEEK.indexOf(d) < 5)) return 'Weekdays';
+  if (sorted.length === 2 && sorted.every(d => WEEK.indexOf(d) >= 5)) return 'Weekends';
+  return sorted.map(weekday).join(', ');
+}
+export { weekday };
 
 // ---------- the clock wheel ----------
 
@@ -62,40 +73,23 @@ export function TimeWheel({ value, onChange, label }: { value: number; onChange:
 
 /** Seven round day buttons for selecting repeat days. */
 export function DaysPicker({ days, onChange }: { days: string[]; onChange: (days: string[]) => void }) {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }}>
-      {WEEK.map(date => {
-        const on = days.includes(date);
-        return (
-          <Pressable
-            key={date}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: on }}
-            accessibilityLabel={weekday(date)}
-            onPress={() => onChange(on ? days.filter(d => d !== date) : [...days, date])}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: on ? C.green : C.sage,
-            }}
-          >
-            <Txt style={{ fontSize: 14, fontWeight: '700', color: on ? C.white : C.green }}>
-              {weekday(date).slice(0, 1)}
-            </Txt>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
+  return <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }}>
+    {WEEK.map(date => {
+      // A weekday is on if any week of it is chosen; turning it off removes it from every week.
+      const on = days.some(d => weekdayOf(d) === weekdayOf(date));
+      return <Pressable key={date} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={weekday(date)}
+        onPress={() => onChange(on ? days.filter(d => weekdayOf(d) !== weekdayOf(date)) : [...days, date])}
+        style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.green : C.sage }}>
+        <Txt style={{ fontSize: 14, fontWeight: '700', color: on ? C.white : C.green }}>{weekday(date).slice(0, 1)}</Txt>
+      </Pressable>;
+    })}
+  </View>;
 }
 
 const KINDS: { id: Commitment['kind']; title: string; sub: string }[] = [
   { id: 'fixed', title: 'Fixed', sub: 'Classes, work shifts. Never moved.' },
   { id: 'flexible', title: 'Flexible', sub: 'Gym, errands. May move to make room.' },
-  // { id: 'recovery', title: 'Rest', sub: 'Sleep, downtime. Never used for study.' },
+  { id: 'recovery', title: 'Rest', sub: 'Sleep, meals, downtime. Always kept free.' },
 ];
 const AREAS: [Dimension, string][] = [['mental', 'Mental'], ['physical', 'Physical'], ['social', 'Social'], ['errands', 'Errands']];
 

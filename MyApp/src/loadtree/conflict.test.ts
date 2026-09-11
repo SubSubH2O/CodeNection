@@ -1,5 +1,6 @@
 import assert from 'node:assert';
-import { makeDemo } from './demo';
+// The planner's mechanics are tested on the classic sample week, whose numbers these tests were written for.
+import { makeClassicDemo as makeDemo } from './demo';
 import { conflictOptions, findConflict, optionMetrics, parseInput, taskFromInput } from './conflict';
 import { planWork, validatePlan } from './planner';
 import { reducer } from './state';
