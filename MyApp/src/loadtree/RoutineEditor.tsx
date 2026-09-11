@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Commitment, Dimension, WEEK, time } from './model';
+import { Commitment, Dimension, WEEK, time, weekdayOf, weekly } from './model';
 import { C, Chip, Group, Icon, Row, Sheet, Txt } from './ui';
 
 /** Anything that happens at a set time on chosen days: a study window, a class, sleep. */
@@ -9,7 +9,8 @@ export interface Routine { name: string; start: number; end: number; days: strin
 const weekday = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short' });
 /** "Every day", "Weekdays", or "Mon, Wed". */
 export function daysLabel(days: string[]): string {
-  const sorted = WEEK.filter(d => days.includes(d));
+  // Routines repeat weekly, so a day counts if any of its weeks is chosen.
+  const sorted = WEEK.filter(d => days.some(x => weekdayOf(x) === weekdayOf(d)));
   if (sorted.length === 7) return 'Every day';
   if (sorted.length === 5 && sorted.every(d => WEEK.indexOf(d) < 5)) return 'Weekdays';
   if (sorted.length === 2 && sorted.every(d => WEEK.indexOf(d) >= 5)) return 'Weekends';
@@ -74,9 +75,10 @@ export function TimeWheel({ value, onChange, label }: { value: number; onChange:
 export function DaysPicker({ days, onChange }: { days: string[]; onChange: (days: string[]) => void }) {
   return <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10 }}>
     {WEEK.map(date => {
-      const on = days.includes(date);
+      // A weekday is on if any week of it is chosen; turning it off removes it from every week.
+      const on = days.some(d => weekdayOf(d) === weekdayOf(date));
       return <Pressable key={date} accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={weekday(date)}
-        onPress={() => onChange(on ? days.filter(d => d !== date) : [...days, date])}
+        onPress={() => onChange(on ? days.filter(d => weekdayOf(d) !== weekdayOf(date)) : [...days, date])}
         style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.green : C.sage }}>
         <Txt style={{ fontSize: 14, fontWeight: '700', color: on ? C.white : C.green }}>{weekday(date).slice(0, 1)}</Txt>
       </Pressable>;
@@ -155,7 +157,10 @@ export const routineOf = (group: Commitment[]): Routine =>
 export function commitmentsFor(old: Commitment[], r: Routine): Commitment[] {
   const base = old[0]?.id ?? `event-${Date.now()}`;
   const length = r.end - r.start;
-  return WEEK.filter(d => r.days.includes(d)).map(date => {
+  // Rest repeats every week of the plan; other events keep exactly the days chosen.
+  const weekdays = WEEK.filter(d => r.days.some(x => weekdayOf(x) === weekdayOf(d)));
+  const dates = r.kind === 'recovery' ? weekdays.flatMap(weekly) : [...new Set(r.days)].sort();
+  return dates.map(date => {
     const prev = old.find(o => o.date === date) ?? old[0];
     const keepMove = r.kind === 'flexible' && prev?.moveWindows?.length && prev.moveWindows[0].end - prev.moveWindows[0].start === length;
     return {

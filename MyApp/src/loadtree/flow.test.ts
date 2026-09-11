@@ -1,13 +1,14 @@
 /// <reference types="node" />
 import assert from 'node:assert';
 import { makeDemo } from './demo';
-import { buildTask, cleanTitle, converse, deadlineFrom, minutesFrom, readRange, respond } from './chat';
+import { buildTask, cleanTitle, converse, deadlineFrom, estimateFor, minutesFrom, readRange, respond } from './chat';
 import { appliedSummary, planRequest } from './flow';
 import { optionMetrics } from './conflict';
 import { validatePlan } from './planner';
 import { reducer } from './state';
-import { Candidate, remaining, stamp } from './model';
+import { Candidate, planState, remaining, stamp } from './model';
 import { slotKey } from './planChanges';
+import { choicesFor, fitSummary, impactOf } from './impact';
 
 const state = makeDemo(true);
 /** Says something, then agrees with the breakdown — the normal two-step exchange. */
@@ -42,7 +43,7 @@ for (const minutes of [15, 30, 45, 60, 90, 120, 180, 300, 480]) {
 
 // ---- 1. the breakdown is confirmed first, then it fits, in more than one way ----
 const labAsk = converse(state, {}, 'Lab report due Thursday, about 2 hours');
-assert(labAsk.messages.some(m => m.card), 'The breakdown arrives as a card, not a paragraph');
+assert(labAsk.messages.some(m => m.review?.task), 'The breakdown arrives as an editable item, not a paragraph');
 assert.equal(labAsk.draft.awaiting, 'confirm', 'Nothing is planned before the student agrees');
 assert(!labAsk.ready);
 const longer = converse(state, labAsk.draft, '3 hours');
@@ -63,12 +64,20 @@ if (fits.kind === 'fits') {
 let turn = converse(state, {}, 'Study for stats midterm');
 assert.equal(turn.draft.awaiting, 'deadline');
 turn = converse(state, turn.draft, 'Thursday');
-assert.equal(turn.draft.awaiting, 'effort');
-turn = converse(state, turn.draft, '2 hours');
-assert.equal(turn.draft.awaiting, 'confirm');
+assert.equal(turn.draft.awaiting, 'confirm', 'Known kinds of work are sized by LoadTree, not by asking the student');
 turn = converse(state, turn.draft, 'yes');
 assert.equal(turn.ready?.task?.deadline, '2026-09-10T23:59');
-assert.equal(remaining(turn.ready!.task!), 120);
+assert.equal(remaining(turn.ready!.task!), 240, 'A midterm is planned at its realistic size');
+// Work LoadTree cannot size on its own is the only time the student is asked for hours.
+let unknown = converse(state, {}, 'Club poster due Thursday');
+assert.equal(unknown.draft.awaiting, 'effort');
+unknown = converse(state, unknown.draft, '2 hours');
+assert.equal(remaining(unknown.draft.proposal!.task!), 120);
+// The underestimate the app exists to catch: a low guess is planned at the realistic size, and said so.
+const lowball = converse(state, {}, 'Lab report due Thursday, about 1 hour');
+assert.equal(remaining(lowball.draft.proposal!.task!), 180);
+assert(lowball.messages.some(m => /You said about 1h/.test(m.text)), 'The student is told why the plan is bigger than their guess');
+assert.equal(remaining(converse(state, lowball.draft, '1 hour').draft.proposal!.task!), 60, 'A deliberate correction is respected');
 const unclear = converse(state, { title: 'Essay', awaiting: 'deadline' }, 'soon');
 assert.equal(unclear.draft.awaiting, 'deadline', 'An unclear answer is asked again, not guessed');
 assert(!unclear.ready);
@@ -117,12 +126,98 @@ const huge = planRequest(state, go(state, 'Thesis chapter due Tuesday, 10 hours'
 assert.equal(huge.kind, 'none');
 assert.equal(respond(state, huge).draft.awaiting, 'effort');
 
+// ---- brain-dump: one sentence, two structured items, the task already broken down ----
+const dump = converse(state, {}, 'Lab report Friday about 3 hours, and work Friday 6pm to 10pm');
+const items = dump.messages.find(m => m.review)?.review;
+assert.equal(dump.draft.awaiting, 'confirm', 'Both items are shown for review before anything is planned');
+assert.equal(items?.task?.title, 'Lab report', 'The day word does not leak into the title');
+assert.equal(items?.task?.deadline, '2026-09-11T23:59', '"Lab report Friday" means due Friday');
+assert.equal(remaining(items!.task!), 180);
+assert.deepEqual(items!.task!.steps.map(s => s.remaining), [30, 60, 60, 30]);
+assert.deepEqual([items?.commitment?.title, items?.commitment?.date, items?.commitment?.start, items?.commitment?.end], ['Work', '2026-09-11', 1080, 1320]);
+const unticked = converse(state, { ...dump.draft, skip: [items!.task!.steps[0].id] }, 'Looks right');
+assert.equal(remaining(unticked.ready!.task!), 150, 'An unticked subtask is left out of the plan');
+assert.equal(planRequest(state, converse(state, dump.draft, 'Looks right').ready!).kind, 'options', 'Together they overload Friday, so choices are offered');
+// ---- the fit check and the plan cards, from the same brain-dump ----
+const dumpOutcome = planRequest(state, converse(state, dump.draft, 'Looks right').ready!);
+assert(dumpOutcome.kind === 'options');
+if (dumpOutcome.kind === 'options') {
+  const fit = fitSummary(state, dumpOutcome);
+  assert.equal(fit.needed, 330, 'Needed: the 3h lab report plus the 2h 30m of study the shift pushes off');
+  assert.equal(fit.short, Math.max(0, fit.needed - fit.available), 'Short is exactly what is needed minus what is free');
+  assert(fit.short > 0, 'The demo week is genuinely over capacity');
+  const cards = choicesFor(state, dumpOutcome);
+  assert(!cards.some(c => c.id === 'keep'), '"Change nothing" is not a card; the fit check already shows it');
+  const shorter = cards.find(c => c.id === 'shorten');
+  assert(shorter, 'A shorter shift is offered because it makes the week work');
+  const work = shorter!.commitments.find(c => c.id === dumpOutcome.request.commitment!.id)!;
+  assert(work.end - work.start < 240 && work.end - work.start >= 120, 'The shift is cut, but never by more than half');
+  assert(shorter!.commitments.every(c => { const b = state.commitments.find(o => o.id === c.id); return !b || (b.date === c.date && b.start === c.start); }), 'Nothing else moves');
+  assert.deepEqual(validatePlan(state, shorter!.tasks, shorter!.commitments, shorter!.blocks), []);
+  for (const card of cards) assert.equal(impactOf(state, card, dumpOutcome.conflict)[0].value, 'Covered', `${card.id} covers the deadline`);
+}
+
+// "Add more items": a second message joins the first instead of replacing it
+const more = converse(state, converse(state, {}, 'Lab report Friday about 3 hours').draft, 'work Friday 6pm to 10pm');
+const merged = more.messages.find(m => m.review)?.review;
+assert(merged?.task && merged.commitment, 'Added items join the ones already under review');
+
+// ---- a long-term project: questions first, then a breakdown paced over two weeks ----
+let hack = converse(state, {}, 'I’m joining a hackathon and the submission is due in two weeks');
+assert.equal(hack.draft.deadline, '2026-09-21T23:59', '"In two weeks" is two weeks from today');
+assert.equal(hack.draft.awaiting, 'team', 'A long project asks follow-up questions before breaking it down');
+hack = converse(state, hack.draft, 'With a team');
+assert.equal(hack.draft.awaiting, 'stage');
+hack = converse(state, hack.draft, 'I have an idea');
+assert.equal(hack.draft.awaiting, 'scope', 'LoadTree asks about the scope, not for an hours guess');
+hack = converse(state, hack.draft, 'A simple demo');
+const project = hack.messages.find(m => m.review)?.review?.task!;
+assert.equal(remaining(project), estimateFor('Hackathon project', { team: 'team', stage: 'idea', scope: 'simple' }), 'The hours are LoadTree’s estimate');
+assert(hack.messages.some(m => /I estimate about/.test(m.text)), 'The estimate is stated, with its weekly pace');
+assert(project.steps.some(s => /Split roles/.test(s.title)), 'A team gets a step to split roles');
+assert(!project.steps.some(s => /problem & idea/.test(s.title)), 'An idea already in hand is not planned again');
+assert(project.steps.some(s => s.optional), 'Optional scope is marked, so it can be cut later');
+// Even the smallest version is more than the fortnight has free — so the student is always shown a choice.
+const paced = planRequest(state, converse(state, hack.draft, 'Looks right').ready!);
+assert.equal(paced.kind, 'options', 'A hackathon overloads a normal fortnight');
+if (paced.kind === 'options') {
+  const cards = choicesFor(state, paced);
+  assert(cards.length >= 2, 'There is always more than one way to make room');
+  assert(cards.some(c => c.id === 'extra-weekend' || c.id === 'longer-days'), 'Finding more time is one of them');
+  for (const c of cards) assert.deepEqual(validatePlan(planState(state, c), c.tasks, c.commitments, c.blocks), [], `${c.title} is a valid plan`);
+  const withTime = cards.find(c => c.preferences)!;
+  const applied = reducer(state, { type: 'approve', plan: withTime });
+  assert.notEqual(applied, state, 'A plan that finds more time can be applied');
+  assert.deepEqual(applied.preferences, withTime.preferences, 'Applying it saves the new routine');
+  assert(new Set(withTime.blocks.filter(b => b.taskId === project.id).map(b => b.date)).size >= 5, 'The work is spread across the fortnight');
+}
+// Too much for the fortnight: cutting optional scope is offered as a real choice.
+let tight = converse(state, {}, 'I’m joining a hackathon and the submission is due in two weeks');
+for (const answer of ['Solo', 'Starting from scratch', 'A working prototype']) tight = converse(state, tight.draft, answer);
+assert.equal(remaining(tight.draft.proposal!.task!), 1320, 'A solo prototype from scratch is about 22h of work');
+// A far-too-low guess for a hackathon is caught too.
+assert(estimateFor('Hackathon project')! > 600, 'A hackathon is never planned as a ten-hour job by default');
+const squeezed = planRequest(state, converse(state, tight.draft, 'Looks right').ready!);
+assert.equal(squeezed.kind, 'options');
+if (squeezed.kind === 'options') {
+  assert(squeezed.options.some(o => o.id === 'extra-weekend') && squeezed.options.some(o => o.id === 'longer-days'), 'Weekends or longer days can find the time');
+  for (const o of squeezed.options.filter(o => o.id !== 'keep')) assert.deepEqual(validatePlan(planState(state, o), o.tasks, o.commitments, o.blocks), [], `${o.title} is a valid plan`);
+}
+// Every way the questions can be answered ends in a choice, never a quiet fit or a dead end.
+for (const team of ['Solo', 'With a team']) for (const stage of ['Starting from scratch', 'I have an idea', 'Already building']) for (const scope of ['A simple demo', 'A working prototype', 'A polished full app']) {
+  let t = converse(state, {}, 'I’m joining a hackathon and the submission is due in two weeks');
+  for (const answer of [team, stage, scope]) t = converse(state, t.draft, answer);
+  const o = planRequest(state, converse(state, t.draft, 'Looks right').ready!);
+  assert(o.kind === 'options' && choicesFor(state, o).length >= 2, `${team} · ${stage} · ${scope} offers a choice`);
+}
+
 // small talk never becomes a task
 assert.equal(converse(state, {}, 'hi').ready, undefined);
 assert.equal(converse(state, {}, 'hi').draft.awaiting, undefined);
 
 // ---- the two demo examples must not spoil each other, in either order ----
-const LAB = 'Lab report due Friday, about 1 hour';
+// Work LoadTree cannot size itself, so the student's 1 hour stands (a lab report would be planned at 3h).
+const LAB = 'Club poster due Friday, about 1 hour';
 const WORK = 'I have work Friday from 6pm to 10pm';
 const ask = (s: typeof state, text: string) => planRequest(s, go(s, text).ready!);
 const labFirst = ask(state, LAB);

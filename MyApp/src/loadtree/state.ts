@@ -1,4 +1,4 @@
-import { AppState, Candidate, Commitment, PlanData, Preferences, Task, stamp, overlaps, remaining, validDate, taskErrors } from './model';
+import { AppState, Candidate, Commitment, PlanData, Preferences, Task, planState, stamp, overlaps, remaining, validDate, taskErrors } from './model';
 import { emptyWeek, makeDemo } from './demo';
 import { validatePlan } from './planner';
 
@@ -48,8 +48,9 @@ export function reducer(state: AppState, action: Action): AppState {
   }
   if (action.type === 'approve') {
     const plan = action.plan;
-    if (plan.sourceRevision !== state.revision || validatePlan(state, plan.tasks, plan.commitments, plan.blocks).length) return state;
-    return updated({ tasks: plan.tasks, commitments: plan.commitments, blocks: plan.blocks, undo: snapshot(state) });
+    // A plan that finds more time is checked against, and saves, its new routine.
+    if (plan.sourceRevision !== state.revision || validatePlan(planState(state, plan), plan.tasks, plan.commitments, plan.blocks).length) return state;
+    return updated({ tasks: plan.tasks, commitments: plan.commitments, blocks: plan.blocks, ...(plan.preferences ? { preferences: plan.preferences } : {}), undo: snapshot(state) });
   }
   if (action.type === 'addCommitment') {
     const next = [...state.commitments, action.commitment];

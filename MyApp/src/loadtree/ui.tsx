@@ -73,6 +73,10 @@ const paths: Record<string, string> = {
   doc: 'M13.5 3H6.5v18h11V7ZM13.5 3v4h4M9 12h6M9 16h4',
   image: 'M4 5h16v14H4ZM4 15.5 9 11l4.5 4.5M13 14l2.5-2.5L20 16M15.5 8.5h.01',
   camera: 'M4 8h3l1.6-2.2h6.8L17 8h3v11H4ZM12 16.2a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z',
+  bag: 'M4 8h16v11H4ZM9 8V5.5h6V8M4 12.5h16M11 12.5v2h2v-2',
+  bed: 'M3 18V6M3 14h18v4M21 18v-4.5a3 3 0 0 0-3-3h-6v3.5M7 11.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
+  bars: 'M5 20v-5M10 20V9M15 20v-7M20 20V5',
+  sparkle: 'M10 3.5 11.6 8 16 9.6l-4.4 1.6L10 15.7l-1.6-4.5L4 9.6 8.4 8ZM17.5 14l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z',
 };
 export function Icon({ name, color = C.green, size = 22 }: { name: string; color?: string; size?: number }) {
   return <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.65} strokeLinecap="round" strokeLinejoin="round">
@@ -162,10 +166,25 @@ export function Stepper({ value, label, onMinus, onPlus }: { value: string; labe
 }
 
 export const MotionContext = React.createContext(false);
-export function Sheet({ title, subtitle, children, onClose, footer, onSave }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode; onSave?: () => void }) {
+export function Sheet({ title, subtitle, children, onClose, footer, onSave, nav = false, headline = false }: { title: string; subtitle?: string; children: React.ReactNode; onClose: () => void; footer?: React.ReactNode; onSave?: () => void; nav?: boolean; headline?: boolean }) {
   const reduceMotion = React.useContext(MotionContext);
   return <Modal visible animationType={reduceMotion ? 'none' : 'fade'} onRequestClose={onClose} transparent><View style={{ flex: 1, backgroundColor: 'rgba(18,39,28,.35)' }}><SafeAreaView style={{ flex: 1, width: '100%', maxWidth: 540, alignSelf: 'center', backgroundColor: C.paper }}><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-    {onSave
+    {nav
+      // Detail screens: back on the left, close on the right; `headline` puts a large title underneath.
+      ? <View style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: headline ? 2 : 8, gap: 8 }}>
+          <View style={S.between}>
+            <View style={[S.row, { flex: 1 }]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={onClose} style={{ padding: 10 }}><Icon name="back" size={26} /></Pressable>
+              {!headline && <Txt accessibilityRole="header" numberOfLines={1} style={{ flex: 1, fontSize: 24, lineHeight: 30, fontWeight: '800', letterSpacing: -0.4 }}>{title}</Txt>}
+            </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: C.sage, alignItems: 'center', justifyContent: 'center' }}><Icon name="close" size={22} /></Pressable>
+          </View>
+          {headline && <View style={{ paddingHorizontal: 10, gap: 4 }}>
+            <Txt accessibilityRole="header" style={{ fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.8 }}>{title}</Txt>
+            {subtitle && <Txt muted style={{ fontSize: 14.5 }}>{subtitle}</Txt>}
+          </View>}
+        </View>
+      : onSave
       // Editing screens: close on the left, the title in the middle, save on the right.
       ? <View style={[S.between, { paddingHorizontal: 8, paddingVertical: 8 }]}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close without saving" onPress={onClose} style={{ padding: 12 }}><Icon name="close" size={24} color={C.ink} /></Pressable>

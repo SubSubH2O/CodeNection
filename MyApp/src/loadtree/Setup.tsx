@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import { AppState, Commitment, Preferences, WEEK, Window, duration, time } from './model';
+import { AppState, Commitment, Preferences, WEEK, Window, duration, time, weekdayOf, weekly } from './model';
 import { C, Group, Icon, Row, Sheet, Stepper, Toggle, Txt } from './ui';
 import { setupErrors } from './state';
 import { Routine, RoutineEditor, commitmentsFor, daysLabel, groupCommitments, routineOf } from './RoutineEditor';
@@ -40,7 +40,9 @@ export function Setup({ state, onSave, onClose }: { state: AppState; onSave: (p:
 
   const saveStudy = (old: Window[], r: Routine) => {
     const rest = preferences.availability.filter(w => !old.includes(w));
-    set({ availability: [...rest, ...r.days.map(date => ({ date, start: r.start, end: r.end }))] });
+    // Study time is a weekly routine: the chosen weekdays repeat across the planning horizon.
+    const weekdays = WEEK.filter(d => r.days.some(x => weekdayOf(x) === weekdayOf(d)));
+    set({ availability: [...rest, ...weekdays.flatMap(weekly).map(date => ({ date, start: r.start, end: r.end }))] });
     setEditing(null);
   };
   const saveEvent = (old: Commitment[], r: Routine) => {

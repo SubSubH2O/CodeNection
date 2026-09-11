@@ -4,19 +4,26 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { LoadTreeProvider, useLoadTree } from './store';
 import { reducer } from './state';
-import { Candidate, Dimension, Task, WEEK, dateLabel, duration, remaining } from './model';
-import { Avatar, C, Button, Chip, Group, Icon, MotionContext, Notice, Page, Row, S, Segmented, Sheet, SOFT_SHADOW, Title, Toggle, Txt } from './ui';
-import { dimensionLoad, loadScores, summarise } from './load';
-import { HeroScene } from './HeroScene';
+import { Candidate, Commitment, Dimension, Task, WEEK, dateLabel, duration, planState, remaining, stamp } from './model';
+import { Avatar, C, Button, Chip, Group, Icon, MotionContext, Notice, Page, Row, S, Segmented, Sheet, SOFT_SHADOW, Title, Toggle, TONE, Txt } from './ui';
+import { dayLoad, dayStatus, dimensionLoad, loadScores, summarise } from './load';
+
+const VIEW_LABEL = { day: 'Day', week: 'Week', month: 'Month' } as const;
+/** "Mon, 7 September" — or "Mon, 31 Aug" when space is shared with the Today button. */
+const longDate = (d: string, short = false) => { const date = new Date(`${d}T12:00:00`); return `${date.toLocaleDateString('en-GB', { weekday: 'short' })}, ${date.getDate()} ${date.toLocaleDateString('en-GB', { month: short ? 'short' : 'long' })}`; };
+import { HeroScene, LoadSummary } from './HeroScene';
 import { TreeScene } from './TreeScene';
 import { LeafBurst } from './Pixel';
+import { CompareScreen, FitScreen } from './FlowScreens';
+import { LoadDetail } from './LoadDetail';
+import { Options, changesOf, choicesFor, describe, impactOf } from './impact';
 import { Capture, InputBar, useKeyboardInset } from './InputBar';
 import { Conflict } from './conflict';
 import { OptionsPanel } from './OptionsPanel';
 import { TaskSpine } from './TaskSpine';
 import { RoutineEditor, commitmentsFor, groupCommitments, routineOf } from './RoutineEditor';
 import { Setup } from './Setup';
-import { DayTimeline, MonthGrid, WeekStrip, changesOn, planChanges } from './Calendar';
+import { DayTimeline, MonthHeader, MonthWeek, WeekAgenda, WeekStrip, changesOn, monthWeeks, planChanges } from './Calendar';
 import { Progress, TaskEditor } from './TaskFlow';
 import { futureCoverage, validatePlan } from './planner';
 import { ChatScreen, useChat } from './ChatScreen';
@@ -34,6 +41,7 @@ type Overlay =
   | { type: 'delete'; id: string }
   | { type: 'newEvent'; start: number }
   | { type: 'editEvent'; id: string }
+  | { type: 'chatEvent'; commitment: Commitment }
   | { type: 'noFit'; task?: Task; shortfall: number }
   | null;
 
@@ -54,11 +62,19 @@ function Application() {
   const [toast, setToast] = useState('');
   // Bumped when something is finished; each bump plays one small burst of pixel leaves.
   const [burst, setBurst] = useState(0);
+  // Bumped by "Add more items" to put the cursor back in the message box.
+  const [focusKey, setFocusKey] = useState(0);
+  // The fit check and the plan comparison, between the chat and the calendar preview.
+  const [flow, setFlow] = useState<{ outcome: Options; options: Candidate[]; step: 'fit' | 'compare'; index: number } | null>(null);
+  // Where Cancel on the calendar preview returns to.
+  const [previewFrom, setPreviewFrom] = useState<'compare' | 'chat' | 'app'>('app');
+  const [barOpen, setBarOpen] = useState(true);
   const [reduceMotion, setReduceMotion] = useState(false);
   const [completedFilter, setCompletedFilter] = useState(false);
   const [pending, setPending] = useState<Candidate | null>(null);
   const [previewing, setPreviewing] = useState(true);
-  const [monthOpen, setMonthOpen] = useState(false);
+  const [view, setView] = useState<'day' | 'week' | 'month'>('day');
+  const [viewMenu, setViewMenu] = useState(false);
   const [compare, setCompare] = useState<{ conflict?: Conflict; subject?: string; options: Candidate[] } | null>(null);
   const [optionIndex, setOptionIndex] = useState(0);
   // Where the proposal on screen came from, so the chat can record what happened to it.
@@ -67,6 +83,8 @@ function Application() {
   const lastTab = useRef<Tab>('home');
   const [focus, setFocus] = useState<{ date: string; start: number; blockId?: string; nonce: number } | null>(null);
   const calendarScroll = useRef<ScrollView>(null);
+  // Where the day timeline starts inside the scroll view (below the month rows in month view).
+  const timelineTop = useRef(0);
   const [localReduceMotion, setLocalReduceMotion] = useState(false);
   const systemReduceMotion = reduceMotion;
   const motionOff = systemReduceMotion || localReduceMotion;
@@ -74,7 +92,7 @@ function Application() {
   // Rows that do not differ are hidden, so the panel can stay short and leave the calendar visible.
   const panelHeight = Math.min(340, Math.max(280, screenHeight * 0.4));
   const keyboard = useKeyboardInset();
-  const chat = useChat();
+  const chat = useChat(motionOff);
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -93,7 +111,7 @@ function Application() {
   const coverage = active.reduce((sum, t) => sum + futureCoverage(state, t), 0);
   const needsPlan = active.length > 0 && validatePlan(state, state.tasks, state.commitments, state.blocks).length > 0;
   const detailTask = overlay && (overlay.type === 'detail' || overlay.type === 'progress' || overlay.type === 'delete') ? state.tasks.find(t => t.id === overlay.id) : undefined;
-  const stale = !!pending && (pending.sourceRevision !== state.revision || validatePlan(state, pending.tasks, pending.commitments, pending.blocks).length > 0);
+  const stale = !!pending && (pending.sourceRevision !== state.revision || validatePlan(planState(state, pending), pending.tasks, pending.commitments, pending.blocks).length > 0);
   const changes = planChanges(state, pending);
   const blankChanges = { added: [], removed: [], moved: [], total: 0, days: new Set<string>() };
   const shownPlan = previewing && pending?.sourceRevision === state.revision ? pending : null;
@@ -106,6 +124,8 @@ function Application() {
   const discard = () => {
     const had = !!(pending || compare);
     setCompare(null); setPending(null); setPreviewing(true);
+    // Cancelling a plan picked from the comparison goes back to the comparison, not to the start.
+    if (previewFrom === 'compare' && flow) { setPreviewFrom('app'); setTab('chat'); return; }
     if (had && origin === 'chat') chat.note('Cancelled — your calendar is unchanged.');
     setToast('Cancelled. Your calendar is unchanged.');
   };
@@ -122,12 +142,14 @@ function Application() {
     dispatch({ type: 'approve', plan: pending });
     setPending(null);
     setCompare(null);
+    setFlow(null);
+    setPreviewFrom('app');
     if (origin === 'chat') { chat.note(summary); chat.clearOffer(); }
     setToast(summary);
     setBurst(b => b + 1);
   };
 
-  const jump = (date: string, start: number, blockId?: string) => { setDay(date); setTab('calendar'); setMonthOpen(false); setFocus({ date, start, blockId, nonce: ++sequence.current }); };
+  const jump = (date: string, start: number, blockId?: string) => { setDay(date); setTab('calendar'); setView('day'); setViewMenu(false); setFocus({ date, start, blockId, nonce: ++sequence.current }); };
   const focusPlan = (option: Candidate, date?: string) => {
     const shift = planChanges(state, option);
     const target = date || shift.moved[0]?.before.date || shift.removed[0]?.date || shift.added[0]?.date || day;
@@ -143,11 +165,33 @@ function Application() {
   const present = (outcome: Outcome, from: 'chat' | 'app') => {
     setOrigin(from);
     const subject = outcome.request.commitment?.title ?? outcome.request.task?.title;
-    if (outcome.kind === 'fits' && outcome.options.length > 1) { showOptions(outcome.options, undefined, subject); return; }
     if (outcome.kind === 'fits') { setCompare(null); setPending(outcome.plan); setPreviewing(true); focusPlan(outcome.plan); return; }
     if (outcome.kind === 'options') { showOptions(outcome.options, outcome.conflict, subject); return; }
     if (outcome.kind === 'none') setOverlay({ type: 'noFit', task: outcome.request.task, shortfall: outcome.shortfall });
   };
+  /** After "Looks good, continue": if it fits, straight to the calendar preview; if not, the fit check first. */
+  const openOutcome = (outcome: Outcome) => {
+    if (outcome.kind === 'options') {
+      const options = choicesFor(state, outcome);
+      if (options.length) { setFlow({ outcome, options, step: 'fit', index: 0 }); return; }
+    }
+    setPreviewFrom('chat');
+    setBarOpen(true);
+    present(outcome, 'chat');
+  };
+  /** "Preview this plan": the chosen plan goes on the calendar in amber, nothing saved yet. */
+  const previewChoice = (i: number) => {
+    if (!flow) return;
+    const option = flow.options[i];
+    setFlow({ ...flow, index: i });
+    setOrigin('chat');
+    setPreviewFrom('compare');
+    setCompare(null); setPending(option); setPreviewing(true); setBarOpen(true);
+    focusPlan(option);
+  };
+  /** "Go back and edit items": back to the review, still editable. */
+  const editItems = () => { setFlow(null); chat.reopen(); setTab('chat'); };
+
   const capture = (c: Capture) => {
     openChat();
     if (c.title) { chat.send(state, c.title); return; }
@@ -156,7 +200,7 @@ function Application() {
   const onChatChip = (chip: ChatChip) => {
     if (chip.action === 'calendar') {
       // Re-plan against the week as it is now, so an old offer can never apply stale changes.
-      if (chat.offer) present(planRequest(state, chat.offer.request), 'chat');
+      if (chat.offer) openOutcome(planRequest(state, chat.offer.request));
       else setTab('calendar');
       return;
     }
@@ -178,20 +222,25 @@ function Application() {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (overlay) { close(); return true; }
+      if (tab === 'chat' && flow) { setFlow(flow.step === 'compare' ? { ...flow, step: 'fit' } : null); return true; }
       if (tab === 'chat') { leaveChat(); return true; }
       if (compare || pending) { discard(); return true; }
       if (tab !== 'home') { setTab('home'); return true; }
       return false;
     });
     return () => subscription.remove();
-  }, [tab, overlay, pending, compare, origin]);
+  }, [tab, overlay, pending, compare, origin, flow, previewFrom]);
 
   const scrollToFocus = () => {
     if (!focus || focus.date !== day) return;
     const rows = [...state.commitments, ...state.blocks, ...(shownPlan?.commitments || []), ...(shownPlan?.blocks || [])].filter(b => b.date === day);
     const from = Math.min(480, ...rows.map(b => Math.floor(b.start / 60) * 60));
-    calendarScroll.current?.scrollTo({ y: Math.max(0, focus.start - from - 20), animated: !motionOff });
+    // In month view the pinned week row covers the top ~56px, so aim a little lower.
+    calendarScroll.current?.scrollTo({ y: Math.max(0, timelineTop.current + focus.start - from - 20 - (view === 'month' ? 56 : 0)), animated: !motionOff });
   };
+  // Changing view starts at the top; an old "scroll to this item" is not replayed.
+  // (Declared first, so a jump that also sets the view still lands on its item.)
+  useEffect(() => { calendarScroll.current?.scrollTo({ y: 0, animated: false }); }, [view]);
   useEffect(scrollToFocus, [focus?.nonce, day, motionOff]);
   const weekLabel = `${dateLabel(WEEK[0])} – ${dateLabel(WEEK[6])}`;
 
@@ -219,41 +268,95 @@ function Application() {
       </View>
     </Page> : <View style={{ flex: 1, paddingBottom: keyboard }}>
 
-      {tab === 'chat' && <ChatScreen chat={chat} onChip={onChatChip} onClose={leaveChat} />}
+      {tab === 'chat' && !flow && <ChatScreen chat={chat} now={state.now} onChip={onChatChip} onClose={leaveChat}
+        onEditTask={task => setOverlay({ type: 'editor', task, fromChat: true })}
+        onEditEvent={commitment => setOverlay({ type: 'chatEvent', commitment })}
+        onContinue={async () => { const outcome = await chat.send(state, 'Looks right', 'Looks good, continue'); if (outcome) openOutcome(outcome); }} />}
+      {tab === 'chat' && flow?.step === 'fit' && <FitScreen state={state} outcome={flow.outcome} onBack={() => setFlow(null)} onCompare={() => setFlow({ ...flow, step: 'compare' })} onEdit={editItems} />}
+      {tab === 'chat' && flow?.step === 'compare' && <CompareScreen state={state} outcome={flow.outcome} options={flow.options} index={flow.index}
+        onIndex={i => setFlow(f => f && { ...f, index: i })} onBack={() => setFlow({ ...flow, step: 'fit' })} onPreview={previewChoice} onEdit={editItems} />}
 
       {/* Home is the tree and nothing else; tasks live in the calendar and the chat. */}
-      {tab === 'home' && <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 }}>
+      {tab === 'home' && <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10, gap: 12 }}>
         <HeroScene loads={loads} selected={dimension} onSelect={d => { setDimension(d); setOverlay({ type: 'dimension', dim: d }); }} greeting={`Hello, ${state.preferences.name || 'there'}`} week={weekLabel} />
+        <LoadSummary loads={loads} onOpen={d => { setDimension(d); setOverlay({ type: 'dimension', dim: d }); }} />
       </View>}
 
       {onCalendar && <View style={{ flex: 1 }}>
-        <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, gap: 8 }}>
-          <View style={[S.between, { flexWrap: 'wrap' }]}>
-            <View style={{ flex: 1, minWidth: 150 }}>
-              <Txt accessibilityRole="header" numberOfLines={1} style={{ fontSize: 20, lineHeight: 27, fontWeight: '800', letterSpacing: -0.4, color: C.green }}>{dateLabel(day, true)}</Txt>
-              <Txt muted style={{ fontSize: 13 }}>{shownPlan && changesOn(changes, day) > 0 ? `${changesOn(changes, day)} ${changesOn(changes, day) === 1 ? 'change' : 'changes'} here` : new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</Txt>
-            </View>
-            {/* Weekly setup sits with the calendar it shapes: an icon beside the view switch. */}
+        {/* A compact header so the schedule starts high on the screen. */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 6, gap: 8, zIndex: 5 }}>
+          <View style={[S.between, { gap: 8 }]}>
+            <Txt accessibilityRole="header" numberOfLines={1} style={{ flex: 1, fontSize: 22, lineHeight: 28, fontWeight: '800', letterSpacing: -0.4 }}>{longDate(day, !compare && day !== state.now.slice(0, 10))}</Txt>
+            {/* Any day other than today gets a quick way back. */}
+            {!compare && day !== state.now.slice(0, 10) && <Pressable accessibilityRole="button" accessibilityLabel="Go to today" onPress={() => setDay(state.now.slice(0, 10))}
+              style={{ minHeight: 36, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: C.line }}>
+              <Txt style={{ fontSize: 13, fontWeight: '700', color: C.green }}>Today</Txt>
+            </Pressable>}
+            {!compare && <Pressable accessibilityRole="button" accessibilityState={{ expanded: viewMenu }} accessibilityLabel={`${VIEW_LABEL[view]} view. Change view`} onPress={() => setViewMenu(!viewMenu)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 14, borderRadius: 14, backgroundColor: C.sage }}>
+              <Txt style={{ fontSize: 14, fontWeight: '700', color: C.green }}>{VIEW_LABEL[view]}</Txt>
+              <View style={{ transform: [{ rotate: viewMenu ? '-90deg' : '90deg' }] }}><Icon name="forward" size={14} /></View>
+            </Pressable>}
+            {/* Weekly setup sits with the calendar it shapes. */}
             {!compare && <Pressable accessibilityRole="button" accessibilityLabel="Weekly setup" onPress={() => setOverlay({ type: 'setup' })}
               style={{ width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: C.sage }}>
               <Icon name="settings" size={19} />
             </Pressable>}
-            {!compare && <Pressable accessibilityRole="button" accessibilityState={{ expanded: monthOpen }} accessibilityLabel={monthOpen ? 'Show one week' : 'Show the whole month'} onPress={() => setMonthOpen(!monthOpen)}
-              style={{ minHeight: 40, paddingHorizontal: 14, justifyContent: 'center', borderRadius: 14, backgroundColor: C.sage }}>
-              <Txt style={{ fontSize: 13, fontWeight: '700', color: C.green }}>{monthOpen ? 'Week' : 'Month'}</Txt>
-            </Pressable>}
           </View>
+          {viewMenu && <View style={{ position: 'absolute', right: 64, top: 46, zIndex: 20, minWidth: 150, paddingVertical: 6, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, ...SOFT_SHADOW }}>
+            {(['day', 'week', 'month'] as const).map(v => <Pressable key={v} accessibilityRole="menuitem" accessibilityState={{ selected: v === view }} onPress={() => { setView(v); setViewMenu(false); setFocus(null); }}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: pressed ? C.surface : 'transparent' })}>
+              <Txt style={{ fontSize: 15, fontWeight: v === view ? '800' : '500' }}>{VIEW_LABEL[v]}</Txt>
+              {v === view && <Icon name="check" size={16} />}
+            </Pressable>)}
+          </View>}
 
-          {!compare && (monthOpen
-            ? <MonthGrid state={shownPlan ? { ...state, tasks: shownPlan.tasks } : state} selected={day} onSelect={setDay} changes={shownPlan ? changes : blankChanges} />
-            : <WeekStrip state={shownPlan ? { ...state, tasks: shownPlan.tasks } : state} selected={day} onSelect={setDay} changes={shownPlan ? changes : blankChanges} />)}
+          {/* This day's load, tied back to the tree. Tapping it explains where the time goes. */}
+          {view !== 'week' && (() => {
+            const load = dayLoad(state, day, shownPlan);
+            const calm = load.tone === 'calm';
+            return <Pressable accessibilityRole="button" accessibilityLabel={`Load ${load.score} percent, ${dayStatus(load)}. Show what feeds it`} onPress={() => setOverlay({ type: 'dimension', dim: 'time' })}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start' }}>
+              <Txt muted style={{ fontSize: 13.5 }}>Load</Txt>
+              <View style={{ width: 96, height: 8, borderRadius: 4, backgroundColor: C.track }}>
+                <View style={{ width: `${Math.max(3, load.score)}%`, height: 8, borderRadius: 4, backgroundColor: TONE[load.tone] }} />
+              </View>
+              <Txt style={{ fontSize: 13.5, fontWeight: '700' }}>{load.score}%</Txt>
+              <View style={{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 9, backgroundColor: calm ? C.sage : C.amberBg }}>
+                <Txt style={{ fontSize: 12.5, fontWeight: '700', color: calm ? C.green : C.amber }}>{dayStatus(load)}</Txt>
+              </View>
+            </Pressable>;
+          })()}
+
+          {!compare && view === 'day' && <WeekStrip state={shownPlan ? { ...state, tasks: shownPlan.tasks } : state} selected={day} onSelect={setDay} changes={shownPlan ? changes : blankChanges} />}
         </View>
 
         {stale && <Notice tone="amber">Your week changed, so this proposal no longer fits. Review the options again.</Notice>}
-        <ScrollView ref={calendarScroll} onContentSizeChange={scrollToFocus} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 24 }} style={{ flex: 1 }}>
-          <DayTimeline state={state} date={day} plan={shownPlan} reduceMotion={motionOff} focus={focus} onJump={b => jump(b.date, b.start, b.id)} onTask={id => setOverlay({ type: 'detail', id })} onSlot={!shownPlan ? minutes => setOverlay({ type: 'newEvent', start: minutes }) : undefined} onEvent={!shownPlan ? id => setOverlay({ type: 'editEvent', id }) : undefined} />
-          {needsPlan && !pending && <Button onPress={() => setOverlay({ type: 'compare' })}>Review a new plan</Button>}
-        </ScrollView>
+        {view === 'week'
+          ? <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }} style={{ flex: 1 }}>
+              <WeekAgenda state={state} selected={day} plan={shownPlan} onDay={d => { setDay(d); setView('day'); }}
+                onWeek={dir => { const d = new Date(`${day}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + dir * 7); setDay(d.toISOString().slice(0, 10)); }} />
+            </ScrollView>
+          : (() => {
+            // Month view scrolls with the schedule instead of taking a fixed half of the screen;
+            // the selected day's week row stays pinned at the top once the rest scrolls away.
+            const month = view === 'month' && !compare;
+            const weeks = month ? monthWeeks(day) : [];
+            const pinned = weeks.findIndex(w => w.includes(day));
+            const calState = shownPlan ? { ...state, tasks: shownPlan.tasks } : state;
+            const nodes = [
+              ...(month ? [
+                <MonthHeader key="month-head" selected={day} onSelect={setDay} />,
+                ...weeks.map(w => <MonthWeek key={w[0]} state={calState} week={w} selected={day} onSelect={setDay} changes={shownPlan ? changes : blankChanges} />),
+              ] : []),
+              <View key="timeline" onLayout={e => { timelineTop.current = e.nativeEvent.layout.y; }} style={{ paddingTop: month ? 14 : 0, gap: 16 }}>
+                <DayTimeline state={state} date={day} plan={shownPlan} reduceMotion={motionOff} focus={focus} onJump={b => jump(b.date, b.start, b.id)} onTask={id => setOverlay({ type: 'detail', id })} onSlot={!shownPlan ? minutes => setOverlay({ type: 'newEvent', start: minutes }) : undefined} onEvent={!shownPlan ? id => setOverlay({ type: 'editEvent', id }) : undefined} />
+                {needsPlan && !pending && <Button onPress={() => setOverlay({ type: 'compare' })}>Review a new plan</Button>}
+              </View>,
+            ];
+            return <ScrollView ref={calendarScroll} onContentSizeChange={scrollToFocus} keyboardShouldPersistTaps="handled" stickyHeaderIndices={month && pinned >= 0 ? [pinned + 1] : undefined}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 24 }} style={{ flex: 1 }}>{nodes}</ScrollView>;
+          })()}
       </View>}
 
       {burst > 0 && <View pointerEvents="none" style={{ position: 'absolute', left: '50%', bottom: 120 }}><LeafBurst key={burst} reduceMotion={motionOff} /></View>}
@@ -263,35 +366,76 @@ function Application() {
         {state.undo && <Pressable accessibilityRole="button" accessibilityLabel="Undo last change" onPress={undo} style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 16, backgroundColor: C.sage }}><Txt style={{ fontSize: 13, fontWeight: '700', color: C.green }}>Undo</Txt></Pressable>}
       </View>}
 
-      {onCalendar && pending && !compare && <View style={{ marginHorizontal: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10, backgroundColor: C.white, borderRadius: 22, borderWidth: 1, borderColor: C.line, ...SOFT_SHADOW }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <Icon name="calendar" size={24} color={stale ? C.amber : C.green} />
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Txt numberOfLines={1} style={{ fontSize: 14.5, fontWeight: '700' }}>{stale ? 'Proposal out of date' : pending.title}</Txt>
-            <Txt numberOfLines={1} muted style={{ fontSize: 12 }}>{stale ? 'Review the options again.' : `${changes.total} ${changes.total === 1 ? 'change' : 'changes'} · nothing saved yet`}</Txt>
+      {onCalendar && pending && !compare && (() => {
+        // Preview mode, unmistakable: which plan this is, what it does to the week, then Cancel or Apply.
+        const fromFlow = previewFrom === 'compare' && flow ? flow : null;
+        const fresh = pending.tasks.find(t => !state.tasks.some(o => o.id === t.id));
+        const name = fromFlow ? describe(state, pending, fromFlow.outcome.request).title : fresh && pending.id.startsWith('fits') ? fresh.title : pending.title;
+        const impact = impactOf(state, pending, fromFlow?.outcome.conflict);
+        // Counted the way the plan card lists them, not block by block.
+        const count = changesOf(state, pending, fromFlow?.outcome.request ?? { task: fresh }).length;
+        // Workload: does the busiest day ahead get lighter or heavier with this plan?
+        const upcoming = WEEK.filter(d => d >= state.now.slice(0, 10));
+        const peak = (plan?: Candidate) => Math.max(0, ...upcoming.map(d => dayLoad(state, d, plan).score));
+        const [before, after] = [peak(), peak(pending)];
+        const metrics = [
+          { label: 'Deadline', value: impact[0].value, good: impact[0].good },
+          { label: 'Sleep', value: impact[1].value, good: impact[1].good },
+          { label: 'Buffer', value: impact[3].value, good: impact[3].good },
+          { label: 'Workload', value: after < before ? 'More balanced' : after > before ? 'Heavier' : 'Same', good: after <= before },
+        ];
+        const letter = fromFlow ? String.fromCharCode(65 + fromFlow.index) : null;
+        // Cancel leaves the whole flow; "See changes" goes back to the plan cards.
+        const abandon = () => {
+          setCompare(null); setPending(null); setPreviewing(true); setFlow(null); setPreviewFrom('app');
+          if (origin === 'chat') chat.note('Cancelled — your calendar is unchanged.');
+          setToast('Cancelled. Your calendar is unchanged.');
+        };
+        return <View style={{ borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, gap: 12, backgroundColor: C.white, borderWidth: 1, borderBottomWidth: 0, borderColor: C.line, ...SOFT_SHADOW }}>
+          <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: stale ? C.amberBg : C.sage, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="calendar" size={22} color={stale ? C.amber : C.green} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Txt style={{ fontSize: 11.5, lineHeight: 15, fontWeight: '800', letterSpacing: 0.8, color: stale ? C.red : C.amber }}>{stale ? 'OUT OF DATE' : letter ? `PREVIEWING PLAN ${letter}` : 'PREVIEW'}</Txt>
+              <Txt numberOfLines={1} style={{ fontSize: 16, lineHeight: 21, fontWeight: '800' }}>{stale ? 'Review the options again' : name}</Txt>
+              <Txt numberOfLines={1} muted style={{ fontSize: 12.5 }}>{count} {count === 1 ? 'change' : 'changes'} · nothing saved yet</Txt>
+            </View>
+            {fromFlow && <Pressable accessibilityRole="button" accessibilityLabel={`See the changes in plan ${letter}`} onPress={discard}
+              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 40, paddingHorizontal: 12, borderRadius: 14, backgroundColor: pressed ? C.line : C.sage })}>
+              <Txt style={{ fontSize: 13.5, fontWeight: '700', color: C.green }}>See changes</Txt>
+              <Icon name="forward" size={14} />
+            </Pressable>}
           </View>
-          {!stale && <Segmented compact accent={C.flag} value={previewing ? 'preview' : 'current'} onChange={v => setPreviewing(v === 'preview')} options={[{ id: 'current', label: 'Now' }, { id: 'preview', label: 'Preview' }]} />}
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Pressable accessibilityRole="button" onPress={discard} style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, borderWidth: 1, borderColor: C.line }}><Txt style={{ fontSize: 13.5, fontWeight: '600' }}>Cancel</Txt></Pressable>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: stale }} disabled={stale} onPress={approve} style={{ flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: C.green, opacity: stale ? 0.45 : 1 }}><Txt style={{ fontSize: 13.5, fontWeight: '700', color: C.white }}>{pending.id.startsWith('fits') ? 'Add to calendar' : 'Apply plan'}</Txt></Pressable>
-        </View>
-      </View>}
+          {!stale && <View style={{ flexDirection: 'row' }}>
+            {metrics.map((item, i) => <View key={item.label} style={{ flex: 1, paddingHorizontal: 7, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
+              <Txt muted numberOfLines={1} style={{ fontSize: 12, lineHeight: 16 }}>{item.label}</Txt>
+              <Txt numberOfLines={1} style={{ fontSize: 13.5, lineHeight: 19, fontWeight: '800', color: item.good ? C.green : C.amber }}>{item.value}</Txt>
+            </View>)}
+          </View>}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable accessibilityRole="button" onPress={fromFlow ? abandon : discard} style={({ pressed }) => ({ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
+              <Txt style={{ fontSize: 15.5, fontWeight: '700' }}>Cancel</Txt>
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: stale }} disabled={stale} onPress={approve} style={({ pressed }) => ({ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: C.green, opacity: stale ? 0.45 : pressed ? 0.85 : 1 })}>
+              <Txt style={{ fontSize: 15.5, fontWeight: '700', color: C.white }}>{fromFlow ? 'Apply plan' : 'Add to calendar'}</Txt>
+            </Pressable>
+          </View>
+        </View>;
+      })()}
 
       {onCalendar && compare && <OptionsPanel state={state} conflict={compare.conflict} subject={compare.subject} options={compare.options} index={optionIndex} day={day} height={panelHeight} reduceMotion={motionOff}
         onSelect={i => { setOptionIndex(i); setPending(compare.options[i]); focusPlan(compare.options[i]); }}
         onDay={date => focusPlan(compare.options[optionIndex], date)} onCancel={discard} onApply={() => { if (stale) { setToast('This option cannot fit. Choose another.'); return; } approve(); }} />}
 
-      {!(onCalendar && (compare || pending)) && <InputBar mode={tab === 'chat' ? 'full' : 'launcher'} autoFocus={tab === 'chat'} hasHistory={chat.messages.length > 1} onOpen={openChat} onCapture={capture} onNotice={setToast} />}
+      {!(onCalendar && (compare || pending)) && !(tab === 'chat' && flow) && <InputBar mode={tab === 'chat' ? 'full' : 'launcher'} focusKey={focusKey} hasHistory={chat.messages.length > 1} onOpen={focus => { openChat(); if (focus) setFocusKey(k => k + 1); /* the keyboard opens only when the text area was tapped */ }} onCapture={capture} onNotice={setToast} />}
     </View>}
 
-    {overlay?.type === 'dimension' && (() => {
-      const load = dimensionLoad(state, overlay.dim);
-      return <Sheet title={`${load.label} · ${load.score}/100`} subtitle={summarise(load)} onClose={close}>
-        {load.contributors.map((c, i) => <View key={c.id} style={{ gap: 2, paddingTop: i ? 14 : 0, borderTopWidth: i ? 1 : 0, borderColor: C.line }}><Txt style={{ fontWeight: '600' }}>{c.title}</Txt><Txt muted style={{ fontSize: 13 }}>{c.detail}</Txt></View>)}
-        {!load.contributors.length && <Txt muted>Nothing here this week.</Txt>}
-      </Sheet>;
-    })()}
+    {overlay?.type === 'dimension' && <LoadDetail state={state} dim={overlay.dim} onClose={close}
+      onTask={id => setOverlay({ type: 'detail', id })}
+      // A day or a commitment opens the calendar right there; the sheets close so it can be seen.
+      onDay={(date, start) => { setOverlay(null); jump(date, start ?? 480); }} />}
     {overlay?.type === 'newEvent' && <RoutineEditor heading="Add event" onClose={close}
       initial={{ name: '', start: overlay.start, end: Math.min(1440, overlay.start + 60), days: [day], kind: 'fixed', dimension: 'mental' }}
       onSave={r => {
@@ -319,7 +463,15 @@ function Application() {
         onDelete={() => { dispatch({ type: 'replaceCommitments', remove, add: [] }); close(); setToast(`${existing.title} deleted.`); }} />;
     })()}
     {overlay?.type === 'setup' && <Setup state={state} onClose={close} onSave={(preferences, commitments) => { dispatch({ type: 'setup', preferences, commitments }); close(); setToast('Weekly setup saved.'); }} />}
-    {overlay?.type === 'editor' && <TaskEditor initial={overlay.task} seed={overlay.seed} onClose={close} onPlan={overlay.fromChat ? task => { chat.revise(state, task); close(); } : beginTaskPlan} />}
+    {overlay?.type === 'editor' && <TaskEditor initial={overlay.task} seed={overlay.seed} onClose={close} onPlan={overlay.fromChat ? task => { chat.amend({ task }); close(); } : beginTaskPlan} />}
+    {overlay?.type === 'chatEvent' && <RoutineEditor heading="Edit event" kinds={['fixed', 'flexible']} onClose={close}
+      initial={{ name: overlay.commitment.title, start: overlay.commitment.start, end: overlay.commitment.end, days: [overlay.commitment.date], kind: overlay.commitment.kind, dimension: overlay.commitment.dimension }}
+      onSave={r => {
+        // A brain-dump item is one occurrence; the first chosen day is the one that counts.
+        const [first] = commitmentsFor([overlay.commitment], { ...r, days: [WEEK.find(d => r.days.includes(d)) ?? overlay.commitment.date] });
+        chat.amend({ commitment: first });
+        close();
+      }} />}
     {overlay?.type === 'noFit' && <Sheet title="No complete plan fits" onClose={close}>
       <Notice tone="amber">{duration(overlay.shortfall)} still needs a study window.</Notice>
       {overlay.task && <Button onPress={() => setOverlay({ type: 'editor', task: overlay.task })}>Edit task</Button>}
@@ -328,6 +480,8 @@ function Application() {
     {overlay?.type === 'progress' && detailTask && <Progress task={detailTask} stepId={overlay.stepId} onClose={() => setOverlay({ type: 'detail', id: detailTask.id })} onSave={minutes => { dispatch({ type: 'progress', taskId: detailTask.id, stepId: overlay.stepId, remaining: minutes }); if (minutes === 0) setBurst(b => b + 1); setToast(minutes === 0 ? 'Step completed.' : 'Progress saved. Checking your remaining work.'); setOverlay(minutes === 0 ? { type: 'detail', id: detailTask.id } : { type: 'compare' }); }} />}
     {overlay?.type === 'detail' && detailTask && <Sheet title={detailTask.title} subtitle={`Due ${dateLabel(detailTask.deadline)} at ${detailTask.deadline.split('T')[1]}`} onClose={close} footer={<Button kind="outline" onPress={() => setOverlay({ type: 'editor', task: detailTask })}>Edit roadmap</Button>}>
       <Chip icon={remaining(detailTask) ? 'clock' : 'check'}>{remaining(detailTask) ? `${duration(remaining(detailTask))} left` : 'All steps complete'}</Chip>
+      {/* The same breakdown the calendar blocks show, counted: which steps already have time. */}
+      <Txt muted>{detailTask.steps.filter(s => s.remaining === 0 || state.blocks.filter(b => b.taskId === detailTask.id && b.stepId === s.id && stamp(b) >= state.now).reduce((sum, b) => sum + b.end - b.start, 0) >= s.remaining).length} of {detailTask.steps.length} steps scheduled</Txt>
       {!remaining(detailTask) && <Notice>You followed it through. Your protected downtime is still yours.</Notice>}
       <TaskSpine task={detailTask} blocks={state.blocks} now={state.now} onJump={block => { close(); jump(block.date, block.start, block.id); }} onProgress={stepId => setOverlay({ type: 'progress', id: detailTask.id, stepId })} />
       {remaining(detailTask) > 0 && <Button onPress={() => setOverlay({ type: 'compare' })}>Review remaining plan</Button>}
@@ -348,7 +502,7 @@ function Application() {
     {overlay?.type === 'advance' && <Sheet title="Skip to Wednesday?" onClose={close} footer={<Button onPress={() => { dispatch({ type: 'advance' }); setDay(WEEK[2]); setTab('home'); setOverlay(null); setToast('It’s Wednesday.'); }}>Skip to Wednesday</Button>}>
       <Txt muted>Work before Wednesday is marked done.</Txt>
     </Sheet>}
-    {overlay?.type === 'reset' && <Sheet title="Reset sample week?" onClose={close} footer={<Button kind="danger" onPress={() => { dispatch({ type: 'reset' }); chat.clear(); setCompare(null); setPending(null); setTab('home'); setDay(WEEK[0]); setDimension(undefined); setCompletedFilter(false); setOverlay(null); setToast('Sample week restored.'); }}>Reset</Button>}>
+    {overlay?.type === 'reset' && <Sheet title="Reset sample week?" onClose={close} footer={<Button kind="danger" onPress={() => { dispatch({ type: 'reset' }); chat.clear(); setCompare(null); setPending(null); setFlow(null); setTab('home'); setDay(WEEK[0]); setDimension(undefined); setCompletedFilter(false); setOverlay(null); setToast('Sample week restored.'); }}>Reset</Button>}>
       <Txt muted>Your tasks, progress and chat will be replaced.</Txt>
     </Sheet>}
     {overlay?.type === 'delete' && detailTask && <Sheet title="Delete this task?" onClose={close} footer={<Button kind="danger" onPress={() => { dispatch({ type: 'delete', taskId: detailTask.id }); setOverlay(null); setToast('Task deleted.'); }}>Delete</Button>}>

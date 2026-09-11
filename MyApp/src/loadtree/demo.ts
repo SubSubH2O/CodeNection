@@ -1,7 +1,9 @@
-import { AppState, Block, Commitment, Task, WEEK } from './model';
+import { AppState, Block, Commitment, Task, WEEK, Window, weekly } from './model';
 
 // Alex's week. Friday evening already holds the remaining database work, so a
 // new Friday shift is a genuine clash rather than a contrived one.
+// Study time and sleep are weekly routines: they repeat across the planning horizon,
+// so a project due in two weeks has real time to be planned into.
 export function makeDemo(setupDone = false): AppState {
   const commitments: Commitment[] = [
     { id: 'lecture', title: 'Marketing lecture', date: WEEK[0], start: 540, end: 660, kind: 'fixed', dimension: 'mental', demand: 'high' },
@@ -9,24 +11,26 @@ export function makeDemo(setupDone = false): AppState {
     { id: 'friend', title: 'Lunch with Mei', date: WEEK[2], start: 720, end: 780, kind: 'fixed', dimension: 'social', demand: 'low' },
     { id: 'gym', title: 'Gym session', date: WEEK[3], start: 960, end: 1050, kind: 'flexible', dimension: 'physical', demand: 'medium', moveWindows: [{ date: WEEK[6], start: 600, end: 690 }] },
     { id: 'errand', title: 'Collect stationery', date: WEEK[2], start: 1080, end: 1140, kind: 'flexible', dimension: 'errands', demand: 'low', moveWindows: [{ date: WEEK[5], start: 600, end: 660 }] },
-    ...WEEK.map((date, i): Commitment => ({ id: `sleep-${i}`, title: 'Protected sleep', date, start: 1320, end: 1440, kind: 'recovery', dimension: 'physical', demand: 'low' })),
+    ...WEEK.flatMap(weekly).map((date, i): Commitment => ({ id: `sleep-${i}`, title: 'Protected sleep', date, start: 1320, end: 1440, kind: 'recovery', dimension: 'physical', demand: 'low' })),
+  ];
+  const routine: Window[] = [
+    // Tuesday and Wednesday evenings are mostly spoken for, so a crowded
+    // Friday forces a real choice: give up Monday evening, or move the gym.
+    { date: WEEK[0], start: 1080, end: 1140 },
+    { date: WEEK[2], start: 1080, end: 1140 },
+    { date: WEEK[3], start: 960, end: 1230 },
+    // Leaves a real 90-minute window before Friday's incoming work shift.
+    // Together with moving the flexible errand, the second demo task fits.
+    { date: WEEK[4], start: 780, end: 870 },
+    { date: WEEK[4], start: 1080, end: 1260 },
+    // Weekends are kept free by default — so a big project has to make a real trade-off to find time.
   ];
   return {
     version: 1, revision: 0, undo: null, setupDone,
     now: `${WEEK[0]}T08:00`,
     preferences: {
       name: 'Alex', dailyLimit: 150, avoidAfterShift: true,
-      availability: [
-        // Tuesday and Wednesday evenings are mostly spoken for, so a crowded
-        // Friday forces a real choice: give up Monday evening, or move the gym.
-        { date: WEEK[0], start: 1080, end: 1140 },
-        { date: WEEK[2], start: 1080, end: 1140 },
-        { date: WEEK[3], start: 960, end: 1230 },
-        // Leaves a real 90-minute window before Friday's incoming work shift.
-        // Together with moving the flexible errand, the second demo task fits.
-        { date: WEEK[4], start: 780, end: 870 },
-        { date: WEEK[4], start: 1080, end: 1260 },
-      ],
+      availability: routine.flatMap(w => weekly(w.date).map(date => ({ ...w, date }))),
     },
     commitments,
     tasks: [databaseAssignment()],

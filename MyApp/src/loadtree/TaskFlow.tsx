@@ -1,24 +1,136 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { AppState, Candidate, Task, WEEK, dateLabel, duration, remaining, taskErrors, time } from './model';
 import { sampleTask } from './demo';
 import { futureCoverage, planWork } from './planner';
-import { Button, C, Chip, Field, Icon, Notice, S, Sheet, Title, Txt } from './ui';
+import { Button, C, Chip, Field, Icon, Notice, S, Sheet, Stepper, Title, Txt } from './ui';
+
+const minutesLabel = (m: number) => (m < 60 ? `${m} min` : duration(m));
+const DUE_TIMES: [string, string][] = [['09:00', '9:00 AM'], ['12:00', '12:00 PM'], ['17:00', '5:00 PM'], ['23:59', '11:59 PM']];
+const clock12 = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+const dueLabel = (deadline: string) => {
+  const [date, at] = deadline.split('T');
+  const d = new Date(`${date}T12:00:00`);
+  return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, ${clock12(at || '23:59')}`;
+};
+
+/** The vertical "more" mark on each step. */
+function MoreDots() {
+  return <View style={{ gap: 3, alignItems: 'center' }}>{[0, 1, 2].map(i => <View key={i} style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: C.muted }} />)}</View>;
+}
 
 export function TaskEditor({ initial, seed, onClose, onPlan }: { initial?: Task; seed?: Task; onClose: () => void; onPlan: (task: Task) => void }) {
-  const [task, setTask] = useState<Task>(initial || seed || { id: `task-${Date.now()}`, title: '', demand: 'high', deadline: `${WEEK[4]}T12:00`, steps: [] });
+  const [task, setTask] = useState<Task>(initial || seed || { id: `task-${Date.now()}`, title: '', demand: 'high', deadline: `${WEEK[4]}T23:59`, steps: [] });
   const [errors, setErrors] = useState<string[]>([]);
-  const update = (id: string, patch: Partial<Task['steps'][number]>) => setTask(t => ({ ...t, steps: t.steps.map(s => s.id === id ? { ...s, ...patch } : s) }));
+  const [open, setOpen] = useState<string | null>(null);
+  const [dueOpen, setDueOpen] = useState(false);
+  const update = (id: string, patch: Partial<Task['steps'][number]>) => setTask(t => ({ ...t, steps: t.steps.map(s => (s.id === id ? { ...s, ...patch } : s)) }));
   const move = (i: number, delta: number) => { const steps = [...task.steps]; const other = i + delta; if (other < 0 || other >= steps.length) return; [steps[i], steps[other]] = [steps[other], steps[i]]; setTask({ ...task, steps }); };
-  return <Sheet title={initial ? 'Edit steps' : 'New task'} onClose={onClose} footer={<><View style={S.between}><Txt muted>Remaining work</Txt><Txt style={{ fontWeight: '700' }}>{duration(remaining(task))}</Txt></View><Button onPress={() => { const issues = taskErrors(task); setErrors(issues); if (!issues.length) onPlan(task); }} icon="calendar">Check how it fits</Button></>}>
-    {!initial && <View style={{ gap: 10 }}><Chip>Prepared suggestions · no live AI</Chip><Button kind="outline" onPress={() => setTask(sampleTask('Marketing report', task.id))}>Use sample report</Button></View>}
-    <Field label="What do you need to do?" placeholder="e.g. Marketing report" value={task.title} onChangeText={title => setTask({ ...task, title })} />
-    <View style={S.row}><View style={{ flex: 2 }}><Field label="Due date (YYYY-MM-DD)" value={task.deadline.split('T')[0]} onChangeText={date => setTask({ ...task, deadline: `${date}T${task.deadline.split('T')[1] || '12:00'}` })} /></View><View style={{ flex: 1 }}><Field label="Time (HH:MM)" value={task.deadline.split('T')[1]} onChangeText={value => setTask({ ...task, deadline: `${task.deadline.split('T')[0]}T${value}` })} /></View></View>
-    <View style={{ gap: 8 }}><Txt style={S.label}>Mental demand</Txt><View style={S.row}>{(['low', 'medium', 'high'] as const).map(demand => <Chip key={demand} active={demand === task.demand} onPress={() => setTask({ ...task, demand })}>{demand === 'low' ? 'Light' : demand === 'medium' ? 'Moderate' : 'Focused'}</Chip>)}</View></View>
-    <View style={S.divider} /><View style={S.between}><Title small>Your roadmap</Title><Txt muted>{task.steps.length} steps</Txt></View><Txt muted style={{ fontSize: 13 }}>Estimates are a starting point. Edit anything.</Txt>
-    {task.steps.map((step, i) => <View key={step.id} style={S.card}><Field label={`Step ${i + 1}`} value={step.title} onChangeText={title => update(step.id, { title })} /><Field label="Minutes left" keyboardType="number-pad" value={String(step.remaining)} onChangeText={v => update(step.id, { remaining: Number(v), estimate: Math.max(15, Number(v)) })} /><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}><Button kind="quiet" disabled={i === 0} onPress={() => move(i, -1)}>Move up</Button><Button kind="quiet" disabled={i === task.steps.length - 1} onPress={() => move(i, 1)}>Move down</Button><Button kind="quiet" onPress={() => setTask({ ...task, steps: task.steps.filter(s => s.id !== step.id) })}>Remove</Button></View></View>)}
-    <Button kind="outline" icon="plus" onPress={() => setTask({ ...task, steps: [...task.steps, { id: `step-${Date.now()}`, title: '', estimate: 30, remaining: 30 }] })}>Add a step</Button>
-    {errors.length > 0 && <Notice tone="red">{errors.join('\n')}</Notice>}
+  const [date, at] = task.deadline.split('T');
+  const setDue = (d: string, t: string) => setTask({ ...task, deadline: `${d}T${t}` });
+  const submit = () => { const issues = taskErrors(task); setErrors(issues); if (!issues.length) onPlan(task); };
+
+  return <Sheet nav title={initial ? 'Edit task' : 'New task'} onClose={onClose}
+    footer={<>
+      <View style={[S.between, { paddingHorizontal: 16, paddingVertical: 14, borderRadius: 16, backgroundColor: C.surface }]}>
+        <Txt muted style={{ fontSize: 15 }}>Remaining work</Txt>
+        <Txt style={{ fontSize: 17, fontWeight: '800' }}>{duration(remaining(task))}</Txt>
+      </View>
+      <Button onPress={submit} icon="calendar">Check how it fits</Button>
+    </>}>
+    {errors.length > 0 && <Txt style={{ color: C.red, fontSize: 14 }}>{errors.join('\n')}</Txt>}
+
+    <View style={{ gap: 4 }}>
+      <Txt muted style={{ fontSize: 13, fontWeight: '600' }}>Task name</Txt>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderBottomWidth: 1, borderColor: C.line }}>
+        <TextInput accessibilityLabel="Task name" value={task.title} onChangeText={title => setTask({ ...task, title })} placeholder="e.g. Marketing report" placeholderTextColor={C.muted}
+          style={{ flex: 1, fontSize: 20, color: C.ink, paddingVertical: 10 }} />
+        {!!task.title && <Pressable accessibilityRole="button" accessibilityLabel="Clear the name" onPress={() => setTask({ ...task, title: '' })} hitSlop={8}
+          style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: C.muted, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name="close" size={14} color={C.white} />
+        </Pressable>}
+      </View>
+    </View>
+
+    <View>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: dueOpen }} accessibilityLabel={`Due ${dueLabel(task.deadline)}`} onPress={() => setDueOpen(!dueOpen)}
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 6, opacity: pressed ? 0.6 : 1 })}>
+        <Icon name="calendar" size={26} color={C.muted} />
+        <View style={{ flex: 1 }}>
+          <Txt muted style={{ fontSize: 13, fontWeight: '600' }}>Due</Txt>
+          <Txt style={{ fontSize: 16.5 }}>{dueLabel(task.deadline)}</Txt>
+        </View>
+        <View style={{ transform: [{ rotate: dueOpen ? '90deg' : '0deg' }] }}><Icon name="forward" size={18} color={C.muted} /></View>
+      </Pressable>
+      {dueOpen && <View style={{ gap: 10, paddingLeft: 40, paddingTop: 10 }}>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {WEEK.map(d => <Chip key={d} active={d === date} onPress={() => setDue(d, at || '23:59')}>{new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' })}</Chip>)}
+        </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {DUE_TIMES.map(([value, label]) => <Chip key={value} active={value === at} onPress={() => setDue(date, value)}>{label}</Chip>)}
+        </View>
+      </View>}
+    </View>
+
+    <View style={{ flexDirection: 'row', gap: 14 }}>
+      <Icon name="mental" size={26} color={C.muted} />
+      <View style={{ flex: 1, gap: 10 }}>
+        <Txt muted style={{ fontSize: 13, fontWeight: '600' }}>Mental demand</Txt>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {(['low', 'medium', 'high'] as const).map(demand => {
+            const on = demand === task.demand;
+            return <Pressable key={demand} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => setTask({ ...task, demand })}
+              style={{ paddingHorizontal: 16, minHeight: 44, justifyContent: 'center', borderRadius: 16, backgroundColor: on ? C.green : C.sage }}>
+              <Txt style={{ fontSize: 15, fontWeight: '700', color: on ? C.white : C.green }}>{demand === 'low' ? 'Light' : demand === 'medium' ? 'Moderate' : 'Focused'}</Txt>
+            </Pressable>;
+          })}
+        </View>
+      </View>
+    </View>
+
+    <View style={{ borderTopWidth: 1, borderColor: C.line, paddingTop: 18 }}>
+      <View style={[S.between, { marginBottom: 6 }]}>
+        <Txt accessibilityRole="header" style={{ fontSize: 21, fontWeight: '800' }}>Steps</Txt>
+        <Txt muted style={{ fontSize: 14 }}>{task.steps.length} {task.steps.length === 1 ? 'step' : 'steps'} · {duration(remaining(task))}</Txt>
+      </View>
+      {task.steps.map((step, i) => {
+        const editing = open === step.id;
+        return <View key={step.id} style={{ borderBottomWidth: 1, borderColor: C.line }}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: editing }} accessibilityLabel={`Step ${i + 1}, ${step.title || 'untitled'}, ${minutesLabel(step.remaining)}`} onPress={() => setOpen(editing ? null : step.id)}
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, opacity: pressed ? 0.7 : 1 })}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: C.sage, alignItems: 'center', justifyContent: 'center' }}>
+              <Txt style={{ fontSize: 15, fontWeight: '700', color: C.green }}>{i + 1}</Txt>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Txt style={{ fontSize: 16.5, lineHeight: 22 }}>{step.title || 'Untitled step'}</Txt>
+              <Txt muted style={{ fontSize: 14 }}>{minutesLabel(step.remaining)}</Txt>
+            </View>
+            <View style={{ padding: 8 }}><MoreDots /></View>
+          </Pressable>
+          {/* Editing opens in place, under the step it belongs to. */}
+          {editing && <View style={{ gap: 10, paddingLeft: 54, paddingBottom: 14 }}>
+            <TextInput accessibilityLabel={`Step ${i + 1} name`} autoFocus={!step.title} value={step.title} onChangeText={title => update(step.id, { title })} placeholder="What’s the step?" placeholderTextColor={C.muted}
+              style={{ fontSize: 16, color: C.ink, paddingVertical: 8, borderBottomWidth: 1, borderColor: C.green }} />
+            <View style={S.between}>
+              <Txt muted style={{ fontSize: 14 }}>Time</Txt>
+              <Stepper label={`time for step ${i + 1}`} value={minutesLabel(step.remaining)}
+                onMinus={() => update(step.id, { remaining: Math.max(15, step.remaining - 15), estimate: Math.max(15, step.remaining - 15) })}
+                onPlus={() => update(step.id, { remaining: Math.min(600, step.remaining + 15), estimate: Math.min(600, step.remaining + 15) })} />
+            </View>
+            <View style={{ flexDirection: 'row', gap: 18 }}>
+              {i > 0 && <Pressable accessibilityRole="button" onPress={() => move(i, -1)} hitSlop={6}><Txt style={{ color: C.green, fontWeight: '700', fontSize: 14 }}>Move up</Txt></Pressable>}
+              {i < task.steps.length - 1 && <Pressable accessibilityRole="button" onPress={() => move(i, 1)} hitSlop={6}><Txt style={{ color: C.green, fontWeight: '700', fontSize: 14 }}>Move down</Txt></Pressable>}
+              <Pressable accessibilityRole="button" onPress={() => { setTask({ ...task, steps: task.steps.filter(s => s.id !== step.id) }); setOpen(null); }} hitSlop={6}><Txt style={{ color: C.red, fontWeight: '700', fontSize: 14 }}>Delete</Txt></Pressable>
+            </View>
+          </View>}
+        </View>;
+      })}
+      <Pressable accessibilityRole="button" onPress={() => { const id = `step-${Date.now()}`; setTask({ ...task, steps: [...task.steps, { id, title: '', estimate: 30, remaining: 30 }] }); setOpen(id); }}
+        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16, opacity: pressed ? 0.6 : 1 })}>
+        <View style={{ width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: C.green, alignItems: 'center', justifyContent: 'center' }}><Icon name="plus" size={20} /></View>
+        <Txt style={{ fontSize: 16.5, fontWeight: '700', color: C.green }}>Add step</Txt>
+      </Pressable>
+    </View>
   </Sheet>;
 }
 
