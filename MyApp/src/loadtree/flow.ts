@@ -125,11 +125,15 @@ function extraTimePlans(state: AppState, base: AppState, task: Task): Candidate[
   const evenings = [...stretched, ...bare];
   const variants: [string, string, number, (limit: number) => Preferences][] = [
     ['extra-weekend', 'Use your weekends', prefs.dailyLimit, limit => ({ ...prefs, dailyLimit: limit, availability: [...prefs.availability, ...weekend] })],
-    ['longer-days', 'Study longer on weekdays', prefs.dailyLimit + 30, limit => ({ ...prefs, dailyLimit: limit, availability: evenings })],
+    ['longer-days', 'Work longer on weekdays', prefs.dailyLimit + 30, limit => ({ ...prefs, dailyLimit: limit, availability: evenings })],
+    // Only when neither is enough on its own: both at once.
+    ['extra-both', 'Weekends and longer days', prefs.dailyLimit + 30, limit => ({ ...prefs, dailyLimit: limit, availability: [...evenings, ...weekend] })],
   ];
   const plans: Candidate[] = [];
   for (const [id, title, from, routine] of variants) {
-    for (let limit = from; limit <= 300; limit += 30) {
+    if (id === 'extra-both' && plans.length) break;
+    // Up to six focused hours a day — the most a plan will ever ask for.
+    for (let limit = from; limit <= 360; limit += 30) {
       const preferences = routine(limit);
       const blocks = placeGently({ ...base, preferences }, task);
       if (!blocks) continue;
@@ -216,9 +220,9 @@ export function planRequest(state: AppState, request: Request): Outcome {
   const trims = trimmedPlans(state, base, task);
   const extra = extraTimePlans(state, base, task);
   if (!result.candidates.length && !trims.length && !extra.length) return { kind: 'none', request, shortfall: result.shortfall };
-  const shaped = result.candidates.map(c => (c.id === 'earlier' ? { ...c, title: 'Reshuffle your study time' } : c));
-  // A mix of kinds of fix, not three versions of the same one: moves, then more time, one scope cut, then longer days.
-  const ordered = [...shaped, ...extra.slice(0, 1), ...trims.slice(0, 1), ...extra.slice(1), ...trims.slice(1)];
+  const shaped = result.candidates.map(c => (c.id === 'earlier' ? { ...c, title: 'Reshuffle your focus time' } : c));
+  // Different kinds of fix, not versions of the same one: more time, a scope cut, then moves and the rest.
+  const ordered = [...extra.slice(0, 1), ...trims.slice(0, 1), ...shaped, ...extra.slice(1), ...trims.slice(1)];
   return { kind: 'options', request, options: honestOptions(state, [...ordered, unchanged(state)]) };
 }
 
@@ -282,7 +286,7 @@ export function appliedSummary(state: AppState, applied: Candidate): string {
   const days = [...new Set(changes.added.map(b => b.date))].sort();
   if (changes.added.length) {
     const where = days.length === 1 ? `on ${dateLabel(days[0])}` : `across ${dateLabel(days[0])} – ${dateLabel(days[days.length - 1])}`;
-    parts.push(`${changes.added.length} study ${changes.added.length === 1 ? 'block' : 'blocks'} ${where}`);
+    parts.push(`${changes.added.length} focus ${changes.added.length === 1 ? 'block' : 'blocks'} ${where}`);
   }
   if (!parts.length) return 'Done — nothing needed to move.';
   return `Done — ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`}.`;

@@ -149,12 +149,17 @@ function Application() {
     setBurst(b => b + 1);
   };
 
-  const jump = (date: string, start: number, blockId?: string) => { setDay(date); setTab('calendar'); setView('day'); setViewMenu(false); setFocus({ date, start, blockId, nonce: ++sequence.current }); };
-  const focusPlan = (option: Candidate, date?: string) => {
+  /** Opens the calendar at a time. `keepView` stays in week or month view instead of switching to the day. */
+  const jump = (date: string, start: number, blockId?: string, keepView = false) => {
+    setDay(date); setTab('calendar'); setViewMenu(false);
+    if (keepView && view !== 'day') { setFocus(null); return; }
+    setView('day'); setFocus({ date, start, blockId, nonce: ++sequence.current });
+  };
+  const focusPlan = (option: Candidate, date?: string, keepView = false) => {
     const shift = planChanges(state, option);
     const target = date || shift.moved[0]?.before.date || shift.removed[0]?.date || shift.added[0]?.date || day;
     const rows = [...shift.added, ...shift.removed, ...shift.moved.map(m => m.now), ...shift.moved.map(m => m.before)].filter(b => b.date === target).sort((a, b) => a.start - b.start);
-    jump(target, rows[0]?.start ?? option.blocks.find(b => b.date === target)?.start ?? 1080);
+    jump(target, rows[0]?.start ?? option.blocks.find(b => b.date === target)?.start ?? 1080, undefined, keepView);
   };
   const showOptions = (options: Candidate[], conflict?: Conflict, subject?: string) => {
     if (!options.length) return;
@@ -180,14 +185,14 @@ function Application() {
     present(outcome, 'chat');
   };
   /** "Preview this plan": the chosen plan goes on the calendar in amber, nothing saved yet. */
-  const previewChoice = (i: number) => {
+  const previewChoice = (i: number, keepView = false) => {
     if (!flow) return;
     const option = flow.options[i];
     setFlow({ ...flow, index: i });
     setOrigin('chat');
     setPreviewFrom('compare');
     setCompare(null); setPending(option); setPreviewing(true); setBarOpen(true);
-    focusPlan(option);
+    focusPlan(option, undefined, keepView);
   };
   /** "Go back and edit items": back to the review, still editable. */
   const editItems = () => { setFlow(null); chat.reopen(); setTab('chat'); };
@@ -371,7 +376,8 @@ function Application() {
         const fromFlow = previewFrom === 'compare' && flow ? flow : null;
         const fresh = pending.tasks.find(t => !state.tasks.some(o => o.id === t.id));
         const name = fromFlow ? describe(state, pending, fromFlow.outcome.request).title : fresh && pending.id.startsWith('fits') ? fresh.title : pending.title;
-        const impact = impactOf(state, pending, fromFlow?.outcome.conflict);
+        const impact = impactOf(state, pending, fromFlow?.outcome.conflict, fromFlow?.outcome.request);
+        const keeping = pending.id === 'keep';
         // Counted the way the plan card lists them, not block by block.
         const count = changesOf(state, pending, fromFlow?.outcome.request ?? { task: fresh }).length;
         // Workload: does the busiest day ahead get lighter or heavier with this plan?
@@ -385,12 +391,6 @@ function Application() {
           { label: 'Workload', value: after < before ? 'More balanced' : after > before ? 'Heavier' : 'Same', good: after <= before },
         ];
         const letter = fromFlow ? String.fromCharCode(65 + fromFlow.index) : null;
-        // Cancel leaves the whole flow; "See changes" goes back to the plan cards.
-        const abandon = () => {
-          setCompare(null); setPending(null); setPreviewing(true); setFlow(null); setPreviewFrom('app');
-          if (origin === 'chat') chat.note('Cancelled — your calendar is unchanged.');
-          setToast('Cancelled. Your calendar is unchanged.');
-        };
         return <View style={{ borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, gap: 12, backgroundColor: C.white, borderWidth: 1, borderBottomWidth: 0, borderColor: C.line, ...SOFT_SHADOW }}>
           <View style={{ alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: C.line }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -399,14 +399,20 @@ function Application() {
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Txt style={{ fontSize: 11.5, lineHeight: 15, fontWeight: '800', letterSpacing: 0.8, color: stale ? C.red : C.amber }}>{stale ? 'OUT OF DATE' : letter ? `PREVIEWING PLAN ${letter}` : 'PREVIEW'}</Txt>
-              <Txt numberOfLines={1} style={{ fontSize: 16, lineHeight: 21, fontWeight: '800' }}>{stale ? 'Review the options again' : name}</Txt>
-              <Txt numberOfLines={1} muted style={{ fontSize: 12.5 }}>{count} {count === 1 ? 'change' : 'changes'} · nothing saved yet</Txt>
+              <Txt numberOfLines={1} style={{ fontSize: 16, lineHeight: 21, fontWeight: '800' }}>{stale ? 'Review the options again' : keeping ? 'No changes' : name}</Txt>
+              <Txt numberOfLines={1} muted style={{ fontSize: 12.5 }}>{keeping ? 'Your week as it is now' : `${count} ${count === 1 ? 'change' : 'changes'} · nothing saved yet`}</Txt>
             </View>
-            {fromFlow && <Pressable accessibilityRole="button" accessibilityLabel={`See the changes in plan ${letter}`} onPress={discard}
-              style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 40, paddingHorizontal: 12, borderRadius: 14, backgroundColor: pressed ? C.line : C.sage })}>
-              <Txt style={{ fontSize: 13.5, fontWeight: '700', color: C.green }}>See changes</Txt>
-              <Icon name="forward" size={14} />
-            </Pressable>}
+            {/* Flip between plans right here on the calendar — the last one is the week unchanged. */}
+            {fromFlow && fromFlow.options.length > 1 && <View style={{ flexDirection: 'row', gap: 6 }}>
+              {fromFlow.options.map((o, i) => {
+                const on = i === fromFlow.index;
+                const l = String.fromCharCode(65 + i);
+                return <Pressable key={o.id} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Preview plan ${l}`} onPress={() => { if (!on) previewChoice(i, true); }}
+                  style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.green : pressed ? C.line : C.sage })}>
+                  <Txt style={{ fontSize: 14, fontWeight: '800', color: on ? C.white : C.green }}>{l}</Txt>
+                </Pressable>;
+              })}
+            </View>}
           </View>
           {!stale && <View style={{ flexDirection: 'row' }}>
             {metrics.map((item, i) => <View key={item.label} style={{ flex: 1, paddingHorizontal: 7, borderLeftWidth: i ? 1 : 0, borderColor: C.line }}>
@@ -415,11 +421,12 @@ function Application() {
             </View>)}
           </View>}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable accessibilityRole="button" onPress={fromFlow ? abandon : discard} style={({ pressed }) => ({ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
-              <Txt style={{ fontSize: 15.5, fontWeight: '700' }}>Cancel</Txt>
+            {/* From the plan cards, this goes back to them; otherwise it simply cancels. */}
+            <Pressable accessibilityRole="button" onPress={discard} style={({ pressed }) => ({ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, borderWidth: 1, borderColor: C.line, opacity: pressed ? 0.7 : 1 })}>
+              <Txt style={{ fontSize: 15.5, fontWeight: '700' }}>{fromFlow ? 'Back to options' : 'Cancel'}</Txt>
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: stale }} disabled={stale} onPress={approve} style={({ pressed }) => ({ flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: C.green, opacity: stale ? 0.45 : pressed ? 0.85 : 1 })}>
-              <Txt style={{ fontSize: 15.5, fontWeight: '700', color: C.white }}>{fromFlow ? 'Apply plan' : 'Add to calendar'}</Txt>
+              <Txt style={{ fontSize: 15.5, fontWeight: '700', color: C.white }}>{keeping ? 'Keep as it is' : fromFlow ? `Apply plan ${letter}` : 'Add to calendar'}</Txt>
             </Pressable>
           </View>
         </View>;
@@ -473,9 +480,9 @@ function Application() {
         close();
       }} />}
     {overlay?.type === 'noFit' && <Sheet title="No complete plan fits" onClose={close}>
-      <Notice tone="amber">{duration(overlay.shortfall)} still needs a study window.</Notice>
+      <Notice tone="amber">{duration(overlay.shortfall)} still needs focus time.</Notice>
       {overlay.task && <Button onPress={() => setOverlay({ type: 'editor', task: overlay.task })}>Edit task</Button>}
-      <Button kind="outline" onPress={() => setOverlay({ type: 'setup' })}>Edit study windows</Button>
+      <Button kind="outline" onPress={() => setOverlay({ type: 'setup' })}>Edit focus time</Button>
     </Sheet>}
     {overlay?.type === 'progress' && detailTask && <Progress task={detailTask} stepId={overlay.stepId} onClose={() => setOverlay({ type: 'detail', id: detailTask.id })} onSave={minutes => { dispatch({ type: 'progress', taskId: detailTask.id, stepId: overlay.stepId, remaining: minutes }); if (minutes === 0) setBurst(b => b + 1); setToast(minutes === 0 ? 'Step completed.' : 'Progress saved. Checking your remaining work.'); setOverlay(minutes === 0 ? { type: 'detail', id: detailTask.id } : { type: 'compare' }); }} />}
     {overlay?.type === 'detail' && detailTask && <Sheet title={detailTask.title} subtitle={`Due ${dateLabel(detailTask.deadline)} at ${detailTask.deadline.split('T')[1]}`} onClose={close} footer={<Button kind="outline" onPress={() => setOverlay({ type: 'editor', task: detailTask })}>Edit roadmap</Button>}>
@@ -489,7 +496,7 @@ function Application() {
     </Sheet>}
     {overlay?.type === 'settings' && <Sheet title="Settings" onClose={close}>
       <Group>
-        <Row label="Weekly setup" sub="Study days, limits, commitments" onPress={() => setOverlay({ type: 'setup' })} />
+        <Row label="Weekly setup" sub="Focus time, limits, events" onPress={() => setOverlay({ type: 'setup' })} />
         <Row label="Reduce motion" right={<Toggle label="Reduce motion" value={motionOff} onChange={v => { if (!systemReduceMotion) setLocalReduceMotion(v); }} />} />
       </Group>
       <Group>
@@ -506,7 +513,7 @@ function Application() {
       <Txt muted>Your tasks, progress and chat will be replaced.</Txt>
     </Sheet>}
     {overlay?.type === 'delete' && detailTask && <Sheet title="Delete this task?" onClose={close} footer={<Button kind="danger" onPress={() => { dispatch({ type: 'delete', taskId: detailTask.id }); setOverlay(null); setToast('Task deleted.'); }}>Delete</Button>}>
-      <Txt muted>{detailTask.title} and its study blocks will be removed.</Txt>
+      <Txt muted>{detailTask.title} and its focus blocks will be removed.</Txt>
     </Sheet>}
   </SafeAreaView></View></MotionContext.Provider>;
 }

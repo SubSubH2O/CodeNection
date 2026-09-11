@@ -1,9 +1,10 @@
-import { AppState, Commitment, Demand, Dimension, Task, dateLabel, duration, remaining, stamp } from './model';
+import { AppState, Commitment, Demand, Dimension, Task, addDays, dateLabel, duration, remaining, stamp } from './model';
 
 // Demand-weighted minutes per week that counts as a full week for each area.
 // These are reference loads, not health measurements or clinical capacity.
 const WEIGHT: Record<Demand, number> = { low: 1, medium: 1.5, high: 2 };
-const REFERENCE: Record<Dimension, number> = { mental: 1400, time: 1100, physical: 500, social: 150, errands: 170 };
+// Sized for a full university week: a normal term week reads as "manageable" to "getting high", not maxed out.
+const REFERENCE: Record<Dimension, number> = { mental: 4100, time: 3000, physical: 500, social: 1200, errands: 170 };
 
 export const ORDER: Dimension[] = ['mental', 'time', 'physical', 'social', 'errands'];
 export const LABEL: Record<Dimension, string> = { mental: 'Mental', time: 'Time', physical: 'Physical', social: 'Social', errands: 'Errands' };
@@ -22,7 +23,10 @@ export interface DimensionLoad {
   busiestDay?: string;
 }
 
-const liveCommitments = (state: AppState): Commitment[] => state.commitments.filter(c => c.kind !== 'recovery' && stamp(c, true) > state.now);
+// The tree shows this week: commitments in the next seven days, and each task's share of work for them.
+const weekEnd = (state: AppState) => addDays(state.now.slice(0, 10), 6);
+const daysUntil = (state: AppState, deadline: string) => Math.max(1, Math.round((Date.parse(`${deadline.slice(0, 10)}T12:00:00Z`) - Date.parse(`${state.now.slice(0, 10)}T12:00:00Z`)) / 86400000) + 1);
+const liveCommitments = (state: AppState): Commitment[] => state.commitments.filter(c => c.kind !== 'recovery' && stamp(c, true) > state.now && c.date <= weekEnd(state));
 const liveTasks = (state: AppState): Task[] => state.tasks.filter(t => remaining(t) > 0);
 const DEMAND_WORD: Record<Demand, string> = { low: 'light', medium: 'moderate', high: 'focused' };
 /** What the two sources are called in each area's score breakdown. */
@@ -58,8 +62,10 @@ export function dimensionLoad(state: AppState, id: Dimension): DimensionLoad {
   if (id === 'mental' || id === 'time') {
     for (const t of liveTasks(state)) {
       const left = remaining(t);
-      minutes += left;
-      items.push({ id: t.id, title: t.title, source: 'task', date: t.deadline.slice(0, 10), weighted: id === 'time' ? left : left * WEIGHT[t.demand],
+      // Work due later only counts for the part of it that belongs to this week.
+      const thisWeek = Math.round(left * Math.min(1, 7 / daysUntil(state, t.deadline)));
+      minutes += thisWeek;
+      items.push({ id: t.id, title: t.title, source: 'task', date: t.deadline.slice(0, 10), weighted: id === 'time' ? thisWeek : thisWeek * WEIGHT[t.demand],
         detail: `${duration(left)} left · due ${dateLabel(t.deadline)}${id === 'time' ? '' : ` · ${DEMAND_WORD[t.demand]} demand`}` });
     }
   }
@@ -81,7 +87,8 @@ export function dimensionLoad(state: AppState, id: Dimension): DimensionLoad {
 export const loadScores = (state: AppState): DimensionLoad[] => ORDER.map(id => dimensionLoad(state, id));
 
 // Demand-weighted minutes that make one full day — a reference, like the weekly ones above.
-const DAY_REFERENCE = 600;
+// A normal class day (4h of lectures, 2h of focus work) reads about 70%, not maxed out.
+const DAY_REFERENCE = 1000;
 
 /** How loaded one day is, from its commitments and study (optionally as a proposed plan would leave it). */
 export function dayLoad(state: AppState, date: string, plan?: Pick<AppState, 'commitments' | 'blocks' | 'tasks'> | null): { score: number; tone: Tone } {

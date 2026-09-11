@@ -89,7 +89,7 @@ export function DaysPicker({ days, onChange }: { days: string[]; onChange: (days
 const KINDS: { id: Commitment['kind']; title: string; sub: string }[] = [
   { id: 'fixed', title: 'Fixed', sub: 'Classes, work shifts. Never moved.' },
   { id: 'flexible', title: 'Flexible', sub: 'Gym, errands. May move to make room.' },
-  { id: 'recovery', title: 'Rest', sub: 'Sleep, downtime. Never used for study.' },
+  { id: 'recovery', title: 'Rest', sub: 'Sleep, meals, downtime. Always kept free.' },
 ];
 const AREAS: [Dimension, string][] = [['mental', 'Mental'], ['physical', 'Physical'], ['social', 'Social'], ['errands', 'Errands']];
 

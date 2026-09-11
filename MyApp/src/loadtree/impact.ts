@@ -13,11 +13,16 @@ const half = (m: number) => (Math.floor(m / 60) % 24 < 12 ? 'AM' : 'PM');
 export const span12 = (start: number, end: number) => (half(start) === half(end) ? `${hour12(start)}–${hour12(end)} ${half(end)}` : `${hour12(start)} ${half(start)} – ${hour12(end)} ${half(end)}`);
 const eventName = (c: Commitment) => (c.title === 'Work' ? 'Work shift' : c.title);
 
-/** The plans worth showing as cards: never "change nothing", plus a shorter shift when one would work. */
+/**
+ * The plan cards: two ways to fix the week, then the week as it is. The last one is the baseline —
+ * flipping between them in the preview shows exactly what each fix changes.
+ */
 export function choicesFor(state: AppState, outcome: Options): Candidate[] {
   const plans = outcome.options.filter(o => o.id !== 'keep');
+  const keep = outcome.options.find(o => o.id === 'keep');
   const shorter = shortenedShift(state, outcome.request);
-  return shorter ? [...plans.slice(0, 2), shorter] : plans.slice(0, 3);
+  const fixes = shorter ? [...plans.slice(0, 1), shorter] : plans.slice(0, 2);
+  return keep ? [...fixes, keep] : fixes;
 }
 
 // ---------- the fit check ----------
@@ -36,7 +41,7 @@ export function fitSummary(state: AppState, outcome: Options): FitSummary {
     blocks: state.blocks.filter(b => !conflict?.displaced.some(d => d.id === b.id)),
   };
   const available = freeStudyMinutes(base, deadline);
-  const neededFor = [request.task?.title, displaced ? 'moved study' : ''].filter(Boolean).join(' + ');
+  const neededFor = [request.task?.title, displaced ? 'moved work' : ''].filter(Boolean).join(' + ');
   return { day: request.commitment?.date ?? deadline.slice(0, 10), deadline, needed, available, short: Math.max(0, needed - available), displaced, neededFor };
 }
 
@@ -77,7 +82,7 @@ export function dayItems(state: AppState, outcome: Options, day: string): DayIte
     const first = run[0]; const last = run[run.length - 1];
     const clash = run.some(b => conflict?.displaced.some(d => d.id === b.id));
     const owner = state.tasks.find(t => t.id === first.taskId);
-    rows.push({ key: first.id, title: owner?.title ?? first.title, when: span12(first.start, last.end), note: clash && conflict ? `Study · clashes with ${eventName(conflict.commitment).toLowerCase()}` : 'Study', kind: clash ? 'clash' : 'study', start: first.start });
+    rows.push({ key: first.id, title: owner?.title ?? first.title, when: span12(first.start, last.end), note: clash && conflict ? `Focus time · clashes with ${eventName(conflict.commitment).toLowerCase()}` : 'Focus time', kind: clash ? 'clash' : 'study', start: first.start });
     run = [];
   };
   for (const b of state.blocks.filter(b => b.date === day && stamp(b) >= state.now).sort((a, b) => a.start - b.start)) {
@@ -98,8 +103,8 @@ export function dayItems(state: AppState, outcome: Options, day: string): DayIte
 export function keepRows(outcome: Options, fit: FitSummary): { label: string; sub: string; value: string; bad: boolean }[] {
   const c = outcome.request.commitment;
   return [
-    { label: 'Deadline', sub: fit.short ? `${duration(fit.short)} of work has no slot` : 'Only if other study moves', value: fit.short ? 'At risk' : 'Tight', bad: true },
-    { label: 'Clashes', sub: fit.displaced && c ? `${eventName(c)} sits on ${duration(fit.displaced)} of study` : 'Nothing overlaps', value: fit.displaced ? duration(fit.displaced) : 'None', bad: fit.displaced > 0 },
+    { label: 'Deadline', sub: fit.short ? `${duration(fit.short)} of work has no slot` : 'Only if other work moves', value: fit.short ? 'At risk' : 'Tight', bad: true },
+    { label: 'Clashes', sub: fit.displaced && c ? `${eventName(c)} sits on ${duration(fit.displaced)} of focus time` : 'Nothing overlaps', value: fit.displaced ? duration(fit.displaced) : 'None', bad: fit.displaced > 0 },
     { label: 'Time to spare', sub: 'No room if anything runs late', value: fit.short ? '0h' : duration(Math.max(0, fit.available - fit.needed)), bad: fit.short > 0 },
   ];
 }
@@ -119,7 +124,18 @@ function recoveryOf(state: AppState, option: Candidate, moved?: Commitment): { v
 }
 
 /** The four things a student weighs: the deadline, sleep, rest, and slack. */
-export function impactOf(state: AppState, option: Candidate, conflict?: Conflict): Impact[] {
+export function impactOf(state: AppState, option: Candidate, conflict?: Conflict, request?: Request): Impact[] {
+  if (option.id === 'keep') {
+    // Nothing moves, so rest is untouched — but the new item simply gets no time.
+    // Short words, so they fit the preview bar's narrow columns.
+    const unplanned = !!request?.task;
+    return [
+      { label: 'Deadline', icon: 'doc', value: unplanned ? 'At risk' : request?.commitment ? 'Not added' : 'Unchanged', good: !unplanned && !request?.commitment },
+      { label: 'Sleep', icon: 'bed', value: 'Protected', good: true },
+      { label: 'Recovery time', icon: 'clock', value: 'Protected', good: true },
+      { label: 'Time to spare', icon: 'bars', value: unplanned ? 'None' : '—', good: !unplanned },
+    ];
+  }
   const m = optionMetrics(state, option, conflict);
   const rest = option.commitments.find(c => {
     const before = state.commitments.find(o => o.id === c.id);
@@ -136,6 +152,11 @@ export function impactOf(state: AppState, option: Candidate, conflict?: Conflict
 /** A plan's name and one-line story, from what it actually changes. */
 export function describe(state: AppState, option: Candidate, request: Request): { title: string; desc: string; tag?: string } {
   const c = request.commitment;
+  if (option.id === 'keep') {
+    return request.task
+      ? { title: 'Keep things as they are', desc: `Nothing on your calendar changes — and ${request.task.title} gets no time before ${dateLabel(request.task.deadline)}.`, tag: 'Deadline at risk' }
+      : { title: 'Keep things as they are', desc: `Nothing changes — ${c ? eventName(c).toLowerCase() : 'the new item'} is not added.`, tag: 'Not added' };
+  }
   if (option.id === 'shorten' && c) {
     const now = option.commitments.find(x => x.id === c.id) ?? c;
     return { title: 'Shorten the shift', desc: `Work ${span12(now.start, now.end)} instead of ${span12(c.start, c.end)}. No other commitments move.`, tag: 'Needs your manager’s OK' };
@@ -145,10 +166,10 @@ export function describe(state: AppState, option: Candidate, request: Request): 
     const fresh = option.blocks.filter(b => b.taskId === request.task!.id);
     const weekend = fresh.filter(b => weekdayOf(b.date) >= 5).reduce((sum, b) => sum + b.end - b.start, 0);
     const before = state.preferences.dailyLimit; const after = option.preferences.dailyLimit;
-    const limit = after > before ? ` Your daily study limit rises from ${duration(before)} to ${duration(after)}.` : '';
-    return option.id === 'extra-weekend'
-      ? { title: option.title, desc: `About ${duration(weekend)} of the work moves to Saturdays and Sundays.${limit}`, tag: 'Less weekend rest' }
-      : { title: option.title, desc: `Study every weekday evening until 9 PM.${limit}`, tag: 'Longer days' };
+    const limit = after > before ? ` Your daily focus limit rises from ${duration(before)} to ${duration(after)}.` : '';
+    if (option.id === 'extra-weekend') return { title: option.title, desc: `About ${duration(weekend)} of the work moves to Saturdays and Sundays.${limit}`, tag: 'Less weekend rest' };
+    if (option.id === 'extra-both') return { title: option.title, desc: `About ${duration(weekend)} moves to the weekend, and weekday evenings run until 9 PM.${limit}`, tag: 'Less rest' };
+    return { title: option.title, desc: `Work every weekday evening until 9 PM.${limit}`, tag: 'Longer days' };
   }
   if (option.id.startsWith('trim') && request.task) {
     // A scope cut: say exactly what is left out and how much time that gives back.
@@ -162,11 +183,11 @@ export function describe(state: AppState, option: Candidate, request: Request): 
   if (moved?.before) {
     return {
       title: moved.now.dimension === 'errands' ? 'Move the errand' : `Move ${moved.now.title.toLowerCase()}`,
-      desc: `${moved.now.title} goes to ${dateLabel(moved.now.date)}, ${span12(moved.now.start, moved.now.end)}. That frees ${weekdayName(moved.before.date)} for study.`,
+      desc: `${moved.now.title} goes to ${dateLabel(moved.now.date)}, ${span12(moved.now.start, moved.now.end)}. That frees ${weekdayName(moved.before.date)} for focus time.`,
     };
   }
   const task = request.task;
-  return { title: task ? `Start the ${task.title.toLowerCase()} earlier` : 'Study earlier in the week', desc: `Work moves to earlier days, so ${c ? weekdayName(c.date) : 'the deadline'} fits.` };
+  return { title: task ? `Start the ${task.title.toLowerCase()} earlier` : 'Work earlier in the week', desc: `Work moves to earlier days, so ${c ? weekdayName(c.date) : 'the deadline'} fits.` };
 }
 
 export interface ChangeRow { key: string; title: string; when: string; badge: 'New' | 'Moved' | 'Shortened' }

@@ -1,6 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert';
-import { makeDemo, sampleTask } from './demo';
+import { makeClassicDemo as makeDemo, makeDemo as makeSample, sampleTask } from './demo';
 import { planWork, validatePlan, futureCoverage } from './planner';
 import { parseSaved, reducer, setupErrors } from './state';
 import { remaining, stamp } from './model';
@@ -65,5 +65,6 @@ let completed = repaired;
 for (const step of task.steps) completed = reducer(completed, { type: 'progress', taskId: task.id, stepId: step.id, remaining: 0 });
 assert.equal(remaining(completed.tasks[0]), 0);
 assert.equal(completed.blocks.filter(b => stamp(b) >= completed.now).length, 0);
-assert.deepEqual(reducer(completed, { type: 'reset' }).tasks.map(t => t.id), ['database'], 'Reset restores the sample week, including its task');
+// Reset brings back the app's sample (Alex's fortnight), whatever the mechanics above were tested on.
+assert.deepEqual(reducer(completed, { type: 'reset' }).tasks.map(t => t.id), makeSample(true).tasks.map(t => t.id), 'Reset restores the sample fortnight, including its tasks');
 console.log('LoadTree: deterministic plans, 60m repair, constraints, undo, stale approval, progress, persistence and reset passed.');

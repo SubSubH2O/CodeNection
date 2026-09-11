@@ -32,7 +32,7 @@ export function OptionsPanel({ state, conflict, subject, options, index, day, he
     { label: 'Things moved', value: String(metrics.moved), raw: metrics.moved, values: all.map(m => m.moved), higher: false },
     { label: 'Protected time', value: metrics.protectedKept ? 'Kept' : 'Lost', raw: metrics.protectedKept ? 1 : 0, values: all.map(m => m.protectedKept ? 1 : 0), higher: true },
     { label: 'Conflicts left', value: String(metrics.conflictsLeft), raw: metrics.conflictsLeft, values: all.map(m => m.conflictsLeft), higher: false },
-    { label: 'Study-free days', value: String(metrics.freeDays), raw: metrics.freeDays, values: all.map(m => m.freeDays), higher: true },
+    { label: 'Free days', value: String(metrics.freeDays), raw: metrics.freeDays, values: all.map(m => m.freeDays), higher: true },
     { label: 'Longest sitting', value: metrics.longestSitting ? duration(metrics.longestSitting) : '—', raw: metrics.longestSitting, values: all.map(m => m.longestSitting), higher: false },
   ].filter(row => new Set(row.values).size > 1 || row.label === 'Deadline buffer');
   const stale = option.sourceRevision !== state.revision;

@@ -193,7 +193,7 @@ const half = (m: number) => (Math.floor(m / 60) % 24 < 12 ? 'AM' : 'PM');
 /** "6–10 PM", or "11 AM – 2 PM" when the range crosses noon — short enough to stay on one line. */
 const span12 = (start: number, end: number) => (half(start) === half(end) ? `${hour12(start)}–${hour12(end)} ${half(end)}` : `${hour12(start)} ${half(start)} – ${hour12(end)} ${half(end)}`);
 const AREA: Record<string, string> = { mental: 'Academic', physical: 'Physical', social: 'Social', errands: 'Errands', time: 'Time' };
-const KIND: Record<Commitment['kind'], string> = { fixed: 'Fixed · never moved', flexible: 'Flexible · may move to make room', recovery: 'Rest · never used for study' };
+const KIND: Record<Commitment['kind'], string> = { fixed: 'Fixed · never moved', flexible: 'Flexible · may move to make room', recovery: 'Rest · always kept free' };
 const eventTitle = (c: Commitment) => (c.title === 'Work' ? 'Work shift' : c.title);
 const eventTag = (c: Commitment) => (c.title === 'Work' ? 'Work' : AREA[c.dimension] ?? 'Event');
 

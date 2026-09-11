@@ -490,12 +490,12 @@ export function respond(state: AppState, outcome: Outcome): { message: Message; 
     const added = planChanges(state, outcome.plan).added;
     const days = [...new Set(added.map(b => b.date))].sort();
     const where = !days.length ? '' : days.length === 1 ? ` on ${dateLabel(days[0])}` : ` across ${dateLabel(days[0])} – ${dateLabel(days[days.length - 1])}`;
-    return { draft: {}, message: say('assistant', `It fits without moving anything — ${added.length} study ${added.length === 1 ? 'block' : 'blocks'}${where}.`, { chips: view }) };
+    return { draft: {}, message: say('assistant', `It fits without moving anything — ${added.length} focus ${added.length === 1 ? 'block' : 'blocks'}${where}.`, { chips: view }) };
   }
   if (outcome.kind === 'options') {
     const cause = outcome.conflict?.task
       ? `${commitment!.title} lands on ${duration(outcome.conflict.displacedMinutes)} of ${outcome.conflict.task.title}.`
-      : 'Your study time is already full, so something has to give.';
+      : 'Your focus time is already full, so something has to give.';
     return { draft: {}, message: say('assistant', `${cause} I found ${ways(outcome.options.length)} to rebalance.`, { chips: [{ label: 'Compare on calendar', action: 'calendar' }] }) };
   }
   if (outcome.kind === 'clash') {

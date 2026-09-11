@@ -110,7 +110,7 @@ export function FitScreen({ state, outcome, onBack, onCompare, onEdit }: { state
 
         {long
           ? <View style={{ gap: 12 }}>
-              <Txt style={{ fontSize: 16.5, fontWeight: '800' }}>Free study time by week</Txt>
+              <Txt style={{ fontSize: 16.5, fontWeight: '800' }}>Free focus time by week</Txt>
               {weeks.map(w => <View key={w.label} style={{ gap: 6 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                   <Txt style={{ fontSize: 14.5 }}>{w.label}</Txt>
@@ -162,7 +162,7 @@ function Dots({ count, index }: { count: number; index: number }) {
 function PlanCard({ state, outcome, option, letter, width, onPreview }: { state: AppState; outcome: Options; option: Candidate; letter: string; width: number; onPreview: () => void }) {
   const story = describe(state, option, outcome.request);
   const rows = changesOf(state, option, outcome.request);
-  const impact = impactOf(state, option, outcome.conflict);
+  const impact = impactOf(state, option, outcome.conflict, outcome.request);
   return (
     <View style={{ width, marginRight: 12, backgroundColor: C.white, borderRadius: 24, borderWidth: 1, borderColor: C.line, padding: 16, gap: 14, ...SOFT_SHADOW }}>
       <View style={{ gap: 4 }}>
@@ -192,7 +192,7 @@ function PlanCard({ state, outcome, option, letter, width, onPreview }: { state:
           </View>
         ))}
         {rows.length > 3 && <Txt muted style={{ fontSize: 12.5 }}>+{rows.length - 3} more on the calendar</Txt>}
-        <Txt muted style={{ fontSize: 12.5 }}>Everything else stays the same</Txt>
+        <Txt muted style={{ fontSize: 12.5 }}>{rows.length ? 'Everything else stays the same' : 'Nothing on your calendar changes'}</Txt>
       </View>
 
       <View>

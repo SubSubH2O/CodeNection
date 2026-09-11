@@ -53,12 +53,12 @@ export function Setup({ state, onSave, onClose }: { state: AppState; onSave: (p:
   return <Sheet title="Weekly setup" onClose={onClose} onSave={save}>
     {errors.length > 0 && <Txt style={{ color: C.red, fontSize: 14 }}>{errors.join('\n')}</Txt>}
 
-    <Group title="Study time">
+    <Group title="Focus time">
       {groupWindows(preferences.availability).map(group => <RoutineRow key={`${group[0].start}-${group[0].end}`}
         big={`${time(group[0].start)} – ${time(group[0].end)}`} sub={daysLabel(group.map(w => w.date))}
-        label={`Study ${time(group[0].start)} to ${time(group[0].end)}, ${daysLabel(group.map(w => w.date))}`}
+        label={`Focus time ${time(group[0].start)} to ${time(group[0].end)}, ${daysLabel(group.map(w => w.date))}`}
         onPress={() => setEditing({ type: 'study', old: group })} />)}
-      <Row label="Add study time" right={<Icon name="plus" size={20} />} onPress={() => setEditing({ type: 'study', old: [] })} />
+      <Row label="Add focus time" right={<Icon name="plus" size={20} />} onPress={() => setEditing({ type: 'study', old: [] })} />
     </Group>
 
     {([['Rest', true], ['Events', false]] as const).map(([title, rest]) => <Group key={title} title={title}>
@@ -70,7 +70,7 @@ export function Setup({ state, onSave, onClose }: { state: AppState; onSave: (p:
     </Group>)}
 
     <Group title="Limits">
-      <Row label="Most study per day" right={<Stepper label="daily study limit" value={duration(preferences.dailyLimit)} onMinus={() => set({ dailyLimit: Math.max(30, preferences.dailyLimit - 30) })} onPlus={() => set({ dailyLimit: Math.min(600, preferences.dailyLimit + 30) })} />} />
+      <Row label="Most focus time per day" right={<Stepper label="daily focus limit" value={duration(preferences.dailyLimit)} onMinus={() => set({ dailyLimit: Math.max(30, preferences.dailyLimit - 30) })} onPlus={() => set({ dailyLimit: Math.min(600, preferences.dailyLimit + 30) })} />} />
       <Row label="Rest after tiring shifts" sub="Keeps the next hour free" right={<Toggle label="Rest after tiring shifts" value={preferences.avoidAfterShift} onChange={avoidAfterShift => set({ avoidAfterShift })} />} />
     </Group>
 
@@ -79,10 +79,10 @@ export function Setup({ state, onSave, onClose }: { state: AppState; onSave: (p:
         style={{ fontSize: 16, color: C.ink, paddingVertical: 16 }} />
     </Group>
 
-    {state.tasks.length > 0 && <Txt muted style={{ fontSize: 12.5, textAlign: 'center' }}>Saving clears upcoming study blocks.</Txt>}
+    {state.tasks.length > 0 && <Txt muted style={{ fontSize: 12.5, textAlign: 'center' }}>Saving clears upcoming focus blocks.</Txt>}
 
-    {editing?.type === 'study' && <RoutineEditor study heading={editing.old.length ? 'Study time' : 'Add study time'}
-      initial={editing.old.length ? { name: 'Study', start: editing.old[0].start, end: editing.old[0].end, days: editing.old.map(w => w.date), kind: 'fixed', dimension: 'mental' } : { name: 'Study', start: 1080, end: 1200, days: [], kind: 'fixed', dimension: 'mental' }}
+    {editing?.type === 'study' && <RoutineEditor study heading={editing.old.length ? 'Focus time' : 'Add focus time'}
+      initial={editing.old.length ? { name: 'Focus time', start: editing.old[0].start, end: editing.old[0].end, days: editing.old.map(w => w.date), kind: 'fixed', dimension: 'mental' } : { name: 'Focus time', start: 1080, end: 1200, days: [], kind: 'fixed', dimension: 'mental' }}
       onClose={() => setEditing(null)} onSave={r => saveStudy(editing.old, r)}
       onDelete={editing.old.length ? () => { set({ availability: preferences.availability.filter(w => !editing.old.includes(w)) }); setEditing(null); } : undefined} />}
     {editing?.type === 'event' && <RoutineEditor heading={editing.rest ? (editing.old.length ? 'Rest' : 'Add rest') : editing.old.length ? 'Edit event' : 'Add event'}

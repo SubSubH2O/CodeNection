@@ -19,14 +19,14 @@ export type Action =
 export function setupErrors(preferences: Preferences, commitments: Commitment[]): string[] {
   const errors: string[] = [];
   if (!preferences.name.trim()) errors.push('Enter your name.');
-  if (!Number.isInteger(preferences.dailyLimit) || preferences.dailyLimit < 15 || preferences.dailyLimit > 720 || preferences.dailyLimit % 15) errors.push('Choose a daily study limit in 15-minute increments, from 15 to 720 minutes.');
-  if (!preferences.availability.length) errors.push('Add at least one study window.');
+  if (!Number.isInteger(preferences.dailyLimit) || preferences.dailyLimit < 15 || preferences.dailyLimit > 720 || preferences.dailyLimit % 15) errors.push('Choose a daily focus limit in 15-minute increments, from 15 to 720 minutes.');
+  if (!preferences.availability.length) errors.push('Add some focus time.');
   for (const window of [...preferences.availability, ...commitments, ...commitments.flatMap(c => c.moveWindows || [])]) {
     if (!validDate(window.date) || !Number.isInteger(window.start) || !Number.isInteger(window.end) || window.start < 0 || window.end > 1440 || window.start >= window.end || window.start % 15 || window.end % 15) errors.push('Use valid dates and time ranges in 15-minute increments.');
   }
   if (commitments.some(c => !c.title.trim())) errors.push('Name every commitment.');
   commitments.forEach((c, i) => { if (commitments.slice(i + 1).some(other => overlaps(c, other))) errors.push('Two commitments overlap. Adjust their times.'); });
-  preferences.availability.forEach((w, i) => { if (preferences.availability.slice(i + 1).some(other => overlaps(w, other))) errors.push('Study windows overlap. Combine or adjust them.'); });
+  preferences.availability.forEach((w, i) => { if (preferences.availability.slice(i + 1).some(other => overlaps(w, other))) errors.push('Focus times overlap. Combine or adjust them.'); });
   return [...new Set(errors)];
 }
 export function snapshot(state: AppState): PlanData {
