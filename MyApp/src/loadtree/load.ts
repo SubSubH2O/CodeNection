@@ -4,7 +4,7 @@ import { AppState, Commitment, Demand, Dimension, Task, addDays, dateLabel, dura
 // These are reference loads, not health measurements or clinical capacity.
 const WEIGHT: Record<Demand, number> = { low: 1, medium: 1.5, high: 2 };
 // Sized for a full university week: a normal term week reads as "manageable" to "getting high", not maxed out.
-const REFERENCE: Record<Dimension, number> = { mental: 4100, time: 3000, physical: 500, social: 1200, errands: 170 };
+const REFERENCE: Record<Dimension, number> = { mental: 4100, time: 3000, physical: 840, social: 1200, errands: 170 };
 
 export const ORDER: Dimension[] = ['mental', 'time', 'physical', 'social', 'errands'];
 export const LABEL: Record<Dimension, string> = { mental: 'Mental', time: 'Time', physical: 'Physical', social: 'Social', errands: 'Errands' };

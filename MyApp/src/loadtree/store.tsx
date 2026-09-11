@@ -4,7 +4,7 @@ import { AppState } from './model';
 import { emptyWeek, makeDemo } from './demo';
 import { Action, parseSaved, reducer } from './state';
 
-const KEY = 'loadtree-demo-v4';
+const KEY = 'loadtree-demo-v5';
 const Context = createContext<{ state: AppState; dispatch: React.Dispatch<Action>; ready: boolean; storageError: boolean } | null>(null);
 export function LoadTreeProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer((s: AppState, a: Action | { type: 'hydrate'; state: AppState }) => a.type === 'hydrate' ? a.state : reducer(s, a), emptyWeek());

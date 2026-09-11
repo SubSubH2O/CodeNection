@@ -24,7 +24,7 @@ const start = scoresOf(base);
 // Every score is derived from the week, not hardcoded in the UI. (Exact values depend on the
 // reference sizes, which are tuned for a real student's week; these checks test the behaviour.)
 assert(Object.values(start).every(score => score > 0 && score <= 100), 'Every area has some load, none maxed out');
-assert.deepEqual([start.physical, start.errands], [27, 35], 'Areas with fixed references score as before');
+assert.deepEqual([start.physical, start.errands], [16, 35], 'Areas with fixed references score as before');
 for (const load of loadScores(base)) {
   assert(load.score >= 0 && load.score <= 100, 'Scores stay within 0-100');
   assert.equal(load.tone, toneFor(load.score));
