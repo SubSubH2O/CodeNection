@@ -141,7 +141,9 @@ The current repository already contains a working mobile prototype and rule-base
 
 ### System Architecture Diagram
 
-Recommended diagram: show the mobile app on the left with dump input, task roadmap, LoadTree, and calendar. Connect the input to a Supabase Edge Function, then to Gemini for task extraction only. Connect the confirmed task to the TypeScript planning engine, then to the option comparison and calendar preview. Show AsyncStorage below the app for local saving. Use a dashed box for optional future Supabase Auth and Postgres sync.
+![LoadTree system architecture](docs/assets/loadtree-system-architecture.png)
+
+*Figure 5. LoadTree's current mobile, planning, AI, and local-storage architecture. The dashed connection shows the optional future account and cloud-sync service.*
 
 ### Current Feasibility Evidence
 
