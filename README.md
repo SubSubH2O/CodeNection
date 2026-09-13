@@ -1,313 +1,175 @@
 # LoadTree by World_Hello
 
-> See what you are carrying, compare realistic changes, and turn your choice into a manageable plan.
-
-**Team Name:** World_Hello  
 **Team:** Seow Jiun Wen and Low Jia Qing  
-**Problem Statement:** Stress & Workload Manager  
-**Video Presentation:** TODO - add the unlisted YouTube link  
-**Presentation Slides:** TODO - add the public slides link
-
-**Project Stage:** Prototype concept. The features and architecture below describe our planned hackathon MVP; they are not claims of a completed application.
+**Problem Statement:** Stress and Workload Manager  
+**Video Presentation:** To be added  
+**Presentation Slides:** To be added
 
 ## 1. Project Overview
 
 ### The Problem
 
-University students balance assignments, classes, part-time jobs, social commitments, errands, and recovery. Each commitment may look manageable on its own, while their combined demands leave little room for unexpected changes. Vague tasks such as "finish my report" also hide the smaller steps and time needed to complete them.
+Students balance coursework, classes, part-time work, social plans, errands, and recovery. They often accept another task because each item looks manageable on its own. However, they may not see how much they are already carrying or how long the new work will take.
 
-When students fall behind, knowing they are overloaded does not tell them what to do next. They must work out what remains, which commitments can move, and what they would sacrifice with each choice. Rebuilding a plan becomes another task when they are already stretched.
+Students often underestimate a task's workload. This means they expect the task to require less time and effort than it actually does. A 2022 study of 210 college students found that 47.1% underestimated how long their chosen academic task would take (Brady, Wolters and Yu, 2022). This can cause students to accept too many tasks and realise that their schedule is overloaded only when they are already exhausted.
 
-Our primary users are university students balancing academic and personal responsibilities, particularly those with part-time jobs or recurring obligations. Other stakeholders include group-project teammates, lecturers, employers, friends, family, and university wellbeing services.
+The main users are university and college students who manage academic work together with jobs, clubs, family duties, social commitments, or errands. Other stakeholders include group members, lecturers, employers, friends, family, and university wellbeing teams.
 
 ### Existing Solutions and the Gap
 
-[Reclaim](https://help.reclaim.ai/en/articles/15280604-reclaim-2-0-faq) already offers AI-assisted scheduling, preview-and-approve changes, routines, and overload protection. [Sunsama](https://www.sunsama.com/features/timeboxing) helps users preview tasks against available time and their preferred shutdown time. Scheduling, previews, and recovery-related boundaries are therefore not unique on their own.
-
-Our proposed focus is a student workflow that connects five areas of load with an editable task roadmap, explicit trade-offs, and an approved plan that can be adjusted after a setback. We aim to make the next practical action clear while accounting for student-defined demands and protected time. This is our intended differentiation, not a claim that existing tools lack every individual feature.
+Google Calendar helps users create events and tasks, assign dates, and plan time. Notion provides task databases, while Notion AI can summarise content and extract action items. These tools are useful for organising work, but their standard workflows do not combine a student's load across five areas, estimate the work hidden inside a vague task, and present several schedule changes with clear trade-offs.
 
 ### Our Solution
 
-LoadTree is a mobile planner that helps university students understand and rebalance their workload across mental, time, physical, social, and errands demands. It turns a vague task into a short, editable roadmap and checks how the work fits around existing commitments and protected recovery time. When a plan becomes crowded or the student falls behind, it proposes feasible changes and explains the trade-off of each option. The student chooses and approves a plan, and LoadTree updates the calendar and shows the next concrete step.
+LoadTree is a mobile app that accepts a quick, unstructured message from the user. It turns the message into an editable task roadmap, breaks the work into smaller steps, and estimates the time needed for each step. A rules-based planner checks the task against the student's schedule and protected recovery time.
+
+If the task would cause overload, LoadTree presents three or four possible adjustments when feasible, explains the trade-off of each option, and lets the student choose before the calendar changes.
 
 ### Feature Set
 
-| Feature | What it does |
-|---|---|
-| Simple weekly setup | Records recurring classes, shifts, existing tasks, available study time, and protected rest; distinguishes fixed and flexible commitments. |
-| LoadTree visualisation | Shows the five areas of load and the commitments contributing to them. |
-| Text capture and task roadmap | Converts a task into a few editable subtasks, estimates, and an order of work. |
-| Capacity Checkpoint | Checks whether new or remaining work fits the student's constraints before calendar changes are saved. |
-| Trade-off comparison | Explains what each feasible option changes, what it preserves, and what the student gives up. |
-| Calendar preview and approval | Shows tentative work blocks and proposed moves before the student applies them. |
-| Next-action card | Identifies the next concrete subtask so the student knows where to start. |
-| Progress update and replanning | Uses a brief student-confirmed update to adjust remaining work and offer a revised plan when needed. |
-| Recovery protection | Keeps student-selected rest periods visible and protected during planning. |
-| No-fit explanation | Identifies unresolved work when no schedule fits and helps the student identify what needs renegotiation. |
+- Low-effort dump input for tasks and commitments.
+- AI-assisted task breakdown with editable time estimates.
+- A visual tree that shows mental, time, physical, social, and errands load.
+- An internal calendar that shows current work and proposed changes.
+- Overload detection based on schedule constraints and estimated work.
+- Several rebalancing options with clear benefits, costs, and a preview before approval.
+- Local saving, progress updates, undo, and a manual path when AI is unavailable.
 
-### Intended Impact
-
-The immediate benefit is a clearer next step and less manual work rebuilding a disrupted week. A student should be able to identify the source of pressure, understand the consequences of a change, and apply a realistic adjustment while keeping important commitments visible.
-
-We plan to test the prototype with a small group of students and observe whether they can understand the load view, correct estimates, compare options, and complete a replanning flow. We would also ask whether the suggested plan feels workable and record the effort needed to maintain it. These are planned evaluations, not completed findings or evidence of reduced burnout.
-
-The same workflow could later support students across different universities through reusable timetable patterns and personal preferences. Our initial scope remains an individual student planner.
-
-## 2. Ideation & Process
+## 2. Ideation and Process
 
 ### 2.1 Ideas We Considered
 
-Chosen directions are listed first. This table records our concept exploration and scope decisions.
+Chosen ideas are listed first. The table shows how the concept changed as we tested its value and feasibility.
 
-| Idea | Decision and rationale |
+| Idea | Why it was kept or dropped |
 |---|---|
-| **Editable task roadmap** | **Chosen.** Break vague work into manageable subtasks and a clear order, while leaving the work itself with the student. |
-| **Load visualisation with practical rebalancing** | **Chosen.** Connect the five areas of student load to changes the student can actually make. |
-| **Trade-off comparison followed by approval** | **Chosen.** Help students choose an acceptable option and apply the corresponding calendar changes. |
-| **Lightweight progress updates and replanning** | **Chosen.** Make the planner useful when real progress differs from the original estimate. |
-| **Capacity check before accepting a commitment** | **Kept within the same flow.** Preview an optional commitment before adding it; also support required tasks that cannot simply be declined. |
-| AI completes selected subtasks, such as emails or documentation | Dropped from the MVP after mentor feedback. Doing the work would expand the scope beyond a feasible planning tool. |
-| Generic automatic calendar rearranger | Dropped as the core pitch. Scheduling alone does not explain the student-specific value or the consequences of each change. |
-| Standalone stress or mood tracker | Dropped as the main solution. Tracking feelings alone does not produce an actionable work plan. |
-| Trade-off display without action support | Refined. Showing consequences is only part of the value; the chosen option should lead to an approved, usable plan. |
-| Broad tutorial or resource library | Deferred. It would add content and maintenance work beyond the core planning loop. |
-| Voice and file capture | Deferred. Text input is enough to demonstrate the complete MVP flow. |
+| **Five-area LoadTree visualisation (Chosen)** | Kept because it gives students one clear view of mental, time, physical, social, and errands load. |
+| **Optional dump input (Chosen)** | Kept because users can record a task in their own words with little effort. The system then turns it into structured information. |
+| **Editable calendar (Chosen)** | Kept so users can accept a suggested plan or directly change the calendar themselves. |
+| **Task roadmap with estimates (Chosen)** | Kept after mentor feedback. The system breaks a task into ordered subtasks and estimates the workload for each one. |
+| **Rebalancing options with trade-offs (Chosen)** | Kept because students can compare several realistic changes and choose the option that matches their priorities. |
+| Required daily questions | Dropped because daily check-ins could feel like another task and make users avoid the app. |
+| AI completes parts of the student's work | Dropped because handling emails, documentation, and research would require much more time and resources. Mentor feedback also showed that a roadmap was enough for the MVP. |
+| Automatic rebalancing without approval | Dropped because the system would make decisions without fully knowing the student's priorities. This could reduce trust and make students less willing to follow the plan. |
 
 ### 2.2 Ideation Boards
 
-#### Problem Map
+These diagrams show how the idea developed, what causes student overload, and how the current application guides a task from input to an approved plan.
 
-```mermaid
-mindmap
-  root((Student overload))
-    What students carry
-      Academic work
-      Classes and paid work
-      Social commitments
-      Errands and commuting
-    Why plans become difficult
-      Vague tasks hide effort
-      Demands overlap
-      Progress differs from estimates
-      Some commitments cannot move
-    What students need
-      See the source of pressure
-      Know the next step
-      Compare realistic changes
-      Apply an updated plan
-      Protect recovery
-```
+#### Application Evolution
 
-This map connects the sources of student overload to the practical support our app should provide. It guided us toward planning and action rather than a dashboard alone.
+![LoadTree application evolution](docs/assets/loadtree-application-evolution.png)
 
-#### Idea Evolution
+*Figure 1. Application evolution from daily check-ins to the final student-controlled LoadTree concept.*
 
-```mermaid
-flowchart TD
-    A[Break tasks into subtasks and let AI complete some work] --> B[Mentor feedback: narrow the scope to subtasks or a roadmap]
-    B --> C[Editable roadmap with estimates and next steps]
-    C --> D[Connect the roadmap to student load and calendar time]
-    D --> E[Show options and their trade-offs]
-    E --> F[Let students approve and apply a plan]
-    F --> G[Add simple progress updates and replanning]
-    A -. dropped .-> H[AI writes emails or documentation for the student]
-    D -. dropped as core .-> I[Generic calendar automation]
-    E -. refined .-> J[Showing trade-offs without helping act]
-```
+#### LoadTree Mind Map
 
-Our concept narrowed from AI performing work to AI supporting an actionable roadmap. Later refinements connected that roadmap to trade-offs, approved scheduling, and progress updates so the student can respond when a plan changes.
+![LoadTree mind map](docs/assets/loadtree-mind-map.png)
 
-#### Core User Flow
+*Figure 2. Mind map of the problem and the main parts of the current LoadTree solution.*
 
-```mermaid
-flowchart TD
-    A[Set up commitments and protected time] --> B[View Tree and Calendar]
-    B --> C[Add a task]
-    C --> D[Review subtasks and estimates]
-    D --> E[Check fit and compare trade-offs]
-    E --> F[Preview and approve a plan]
-    F --> G[Follow the next step]
-    G --> H[Update progress]
-    H --> I{Does remaining work still fit?}
-    I -->|Yes| G
-    I -->|Changes needed| E
-    I -->|No feasible option| J[Explain shortfall and identify what needs renegotiation]
-    H -->|Task complete| K[Mark complete and keep recovery visible]
-```
+#### Student Workload Problem Tree
 
-This flow shows both initial planning and the return journey after a setback. Trade-off comparison stays connected to an action the student can approve.
+![Student workload problem tree](docs/assets/student-workload-problem-tree.png)
+
+*Figure 3. Problem tree connecting root causes and immediate causes to student overload and burnout effects.*
+
+#### Task Planning Flow
+
+![LoadTree task planning flow](docs/assets/loadtree-task-planning-flow.png)
+
+*Figure 4. User flow from task input and workload checking to calendar approval and an updated LoadTree view.*
 
 ### 2.3 Mentor Consultation
 
 | Date | Mentor | Feedback Received | What Was Changed |
 |---|---|---|---|
-| 8 September 2026 | Faris Imran | Our original idea was to break a task into subtasks and let the system perform some AI-suitable subtasks, such as writing emails or documentation. Faris suggested that breaking work into subtasks was sufficient and could be presented as a roadmap, making the project more feasible and keeping its scope manageable. | We narrowed the MVP to an editable task roadmap with estimated durations and next steps. We removed automatic completion of emails, documentation, and other student work from the scope. The roadmap now supports workload planning and student-controlled calendar changes. |
+| 8 September 2026 | Faris Imran | Reduce the scope. Keep task breakdown as a roadmap instead of asking AI to complete emails, documentation, or research. | Removed AI task completion. Kept editable subtasks, time estimates, next steps, and user-approved calendar changes. |
 
-The mentor feedback informed the roadmap and scope reduction. The trade-off and progress-update flows are subsequent team refinements, rather than additional advice attributed to the mentor.
+The mentor's feedback guided the scope reduction. The trade-off comparison and progress-update flows were later refinements made by the team.
 
-## 3. Design & Prototype
+## 3. Design and Prototype
 
-**UI Prototype:** TODO - add a publicly accessible prototype link
+**UI Prototype:** To be added
 
-**Prototype evidence:** TODO - embed or link 4-8 actual screens with interaction captions. Check the prototype and submission links in an incognito window before submission.
+Check the final link in an incognito window before submission.
 
-### Main Screens
+### Key Screens
 
-| Screen | Interaction to demonstrate |
+The six screens below show the main LoadTree experience from workload overview to an approved calendar plan.
+
+| Workload Overview | Time Load Details |
 |---|---|
-| 1. Weekly setup | Add recurring commitments, mark fixed or flexible items, and protect recovery time. |
-| 2. Tree home | Inspect the five areas of load and tap a branch to see contributing commitments. |
-| 3. Task capture and roadmap | Enter a task, then review and edit its subtasks, deadline, and estimates. |
-| 4. Capacity Checkpoint and trade-offs | See what does not fit and compare feasible adjustments with their consequences. |
-| 5. Calendar preview | Review tentative blocks and moves; approve or cancel the changes. |
-| 6. Today's next step and progress | See what to work on next and choose Done, Partly done, or Not started. |
-| 7. Revised plan | Review changed remaining work and approve a suitable adjustment. |
-| 8. No-fit explanation | See the shortfall and what constraints or commitments would need renegotiation. |
+| ![LoadTree home showing five workload areas](docs/assets/screen-1-loadtree-home.jpg) | ![Time load score and top contributors](docs/assets/screen-2-time-load.jpg) |
+| **Screen 1.** LoadTree home: overview of load across five areas. | **Screen 2.** Time load details: score, available time, and top contributors. |
 
-Tree and Calendar are separate views of the same plan, with visible navigation as well as optional swiping. Proposed blocks use patterns and labels; saved blocks are visually distinct.
+| Dump Input | Task Roadmap |
+|---|---|
+| ![Natural-language task dump input](docs/assets/screen-3-dump-input.jpg) | ![Editable task roadmap with workload estimates](docs/assets/screen-4-task-roadmap.jpg) |
+| **Screen 3.** Dump input: the student describes a new task in natural language. | **Screen 4.** Task roadmap: extracted subtasks and workload estimates can be reviewed. |
 
-### Simple End-to-End Example
-
-A student has a marketing report due Friday.
-
-1. **Set up the week:** Add classes, work shifts, errands, and protected rest.
-2. **See the current load:** Inspect the Tree and Calendar to understand existing commitments.
-3. **Add the report:** Type "Marketing report due Friday."
-4. **Review the roadmap:** Confirm research, outline, drafting, and editing steps with editable estimates.
-5. **Check the impact:** LoadTree checks the work against the entered schedule, daily planning limits, task order, and recovery preferences.
-6. **Compare trade-offs:** Where feasible, start earlier and make Tuesday busier, or move a flexible errand to Saturday and use its original slot for study. An extension can be explored separately, subject to outside approval.
-7. **Approve a plan:** Review the actual calendar changes and apply the chosen option.
-8. **Follow the next step:** See a specific action such as "Gather sources for the report."
-9. **Update progress:** If some work remains, confirm what is left. LoadTree checks whether replanning is necessary and shows revised trade-offs.
-10. **Finish:** Mark the report submitted while keeping protected recovery time in the plan.
-
-**Illustrative repair:** The student confirms 4 hours 30 minutes of remaining work, but their existing report blocks cover only 3 hours 30 minutes. Moving an eligible one-hour errand from Wednesday to an available Saturday slot creates the missing study hour. The preview shows the errand moving, the report work added, and the unchanged recovery block. Redistributing work changes when it happens; it does not make the total work disappear.
-
-### Progress Updates Without Repeated Prompts
-
-The student can tap **Update progress** at any time. When they next open LoadTree after a scheduled work block, an unobtrusive in-app check-in offers:
-
-- **Done:** Mark the subtask complete.
-- **Partly done:** Confirm what remains and adjust the estimate if needed.
-- **Not started:** Keep the work unfinished and check whether the plan needs changing.
-
-The student can dismiss the check-in. No answer means **unconfirmed**, not failed or complete, and never triggers automatic rescheduling. A daily reminder can be an optional later addition; it is not necessary for the core MVP.
-
-### When Nothing Fits
-
-If no option satisfies the recorded constraints, LoadTree shows the unmet work clearly: for example, "You need one more hour before Friday than your available study time allows."
-
-The student can correct estimates or availability, identify a commitment to renegotiate, or explore a later deadline as a hypothetical plan. LoadTree does not assume an extension has been granted or silently use protected rest. The original deadline remains until the student confirms an approved change. The MVP identifies the next action; it does not write or send emails or complete documentation.
-
-### Accessibility and Trust
-
-- Use labels, icons, and patterns alongside colour.
-- Keep navigation visible, text scalable, and controls easy to tap.
-- Explain why each change is proposed and provide preview, cancel, and undo.
-- Make AI estimates and demand labels editable.
-- Label forecasts as estimates based on entered information; allow missing commitments to be added easily.
-- Keep fixed commitments and protected recovery intact unless the student explicitly edits those constraints.
-- Use supportive language such as "Update progress" rather than assigning blame for missed work.
+| Rebalancing Options | Calendar Preview |
+|---|---|
+| ![Rebalancing plan and trade-offs](docs/assets/screen-5-rebalancing-options.jpg) | ![Calendar preview of the chosen plan](docs/assets/screen-6-calendar-preview.jpg) |
+| **Screen 5.** Rebalancing options: the student compares changes and trade-offs. | **Screen 6.** Calendar preview: proposed focus blocks appear before the plan is applied. |
 
 ## 4. What Makes It Different
 
-Our proposed distinction is the combination of student load awareness, a task roadmap, explicit trade-offs, and action after approval. We do not claim that task breakdown, calendar previews, or recovery scheduling are individually new.
+LoadTree combines three functions in one student-focused flow. The comparison below is based on the standard features described in the official Google Calendar and Notion help pages.
 
-1. **A roadmap connected to real constraints.** Subtasks become work blocks checked against classes, shifts, available time, and personal preferences. The student sees both the next action and where it fits.
-2. **Trade-offs that lead to changes.** Each option explains the concrete consequence, such as a busier Tuesday or a postponed errand, and can become an approved calendar plan.
-3. **Capacity beyond blank calendar slots.** A student can mark a shift as draining and avoid demanding work afterwards, even when that evening appears unoccupied.
-4. **A useful return flow after setbacks.** A brief progress update leads to a check of remaining work and, when needed, a revised plan. The student does not need to rebuild the week manually.
-5. **An honest no-fit outcome.** When everything cannot fit, the app makes the shortfall and possible renegotiation clear instead of generating a reassuring but impossible schedule.
-6. **Recovery remains part of the plan.** Protected time is a declared planning constraint, so the student can see whether an option respects it.
-
-## 5. Technical Architecture & Feasibility
-
-### Proposed Tech Stack
-
-This is a proposed implementation approach for the three-week build phase. Provider selection and deployment details will be confirmed before implementation; no service integration is claimed as complete.
-
-| Layer | Proposed choice | Why this fits the MVP | Constraint to manage |
+| Area | Google Calendar | Notion AI and Calendar | LoadTree |
 |---|---|---|---|
-| Frontend | React Native, Expo, and TypeScript | A mobile interface for the Tree, roadmap, and internal Calendar. | Keep interactions and platform-specific behaviour limited. |
-| Backend | Supabase with a server-side function for AI requests | A small backend for user data and controlled API access. | Keep secrets server-side and validate AI responses. |
-| Database and authentication | Supabase Postgres and Auth | Store commitments, subtasks, progress, preferences, and approved plans per user. | Configure access controls and minimise stored personal data. |
-| AI API | One structured-output LLM API; provider and model to be confirmed | Suggest subtasks, durations, and structured task details from text. | Set a request budget, handle failures, and always allow manual correction. |
-| Planning engine | Deterministic TypeScript rules | Check task order, deadlines, allowed windows, fixed events, planning limits, and protected time. | Use a few planning strategies rather than attempting a general optimisation system. |
-| Hosting and distribution | Proposed static web demo on Vercel; application backend on Supabase; Expo for mobile development | Give reviewers an accessible demo while developing the mobile experience. | Verify export compatibility and public access early; deployment is pending. |
+| Low-effort input | Users create a task or event and enter its details. | Notion AI can extract action items from page content. | The student can dump a short message. LoadTree structures it and prepares it for planning. |
+| Task breakdown and workload estimate | Tasks can include a date and planned time, but the user defines the work. | AI can summarise and extract tasks, but workload estimates are not tied to the student's total load by default. | LoadTree breaks the task into editable subtasks and estimates the time for each one. |
+| Rebalancing and trade-offs | Users can manually move tasks and events. | Users can manage and move calendar items. | LoadTree generates several feasible options, shows the cost of each option, and asks the student to choose. |
 
-### How the Capacity Check Works
+## 5. Technical Architecture and Feasibility
 
-The MVP uses transparent planning signals rather than an unexplained combined burnout score:
+### Tech Stack
 
-- **Time:** Compare estimated work with available windows and the student's chosen study limit.
-- **Mental and physical demand:** Use editable low, medium, or high demand labels and preferences such as avoiding demanding study after a draining shift.
-- **Social and errands:** Show these commitments and their flexibility; social activities may be described by the student as draining, neutral, or restorative.
-- **Recovery:** Preserve designated blocks and respect the student's stated preferences.
+The current repository already contains a working mobile prototype and rule-based planning logic. The build phase will connect the prepared AI service to a live deployment and replace demo limits with production-ready data and dates.
 
-The five areas are overlapping views. An errand may consume time and physical effort, so category values are not simply added together. A forecast might state "One hour remains unscheduled before Friday" or "This plan exceeds your chosen study limit on Thursday." It does not diagnose burnout or claim to measure mental health.
+| Layer | Choice | Why we chose it | Constraint |
+|---|---|---|---|
+| Frontend | React Native 0.86, React 19, Expo 57 | One codebase can run on Android, iOS, and the web. Expo reduces setup time for a two-person team. | Keep the MVP focused on the tested mobile flow and limit platform-specific features. |
+| Language and UI | TypeScript 6 and react-native-svg | Typed task and schedule models reduce errors. SVG supports the LoadTree visual. | Complex animations and custom graphics must still perform well on lower-end phones. |
+| State and local data | React state and AsyncStorage | The prototype works offline and saves the schedule, chat, progress, and setup on the device. | Local storage does not provide account sync or shared data across devices. |
+| Planning engine | Deterministic TypeScript rules | The app checks deadlines, fixed commitments, available windows, daily limits, and recovery blocks. Results are explainable and testable. | The MVP will use a small set of planning strategies, not a general optimisation system. |
+| Backend and AI | Supabase Edge Function on Deno with Gemini 2.5 Flash | The API key stays on the server. Gemini returns a structured task and two to five estimated steps; the app validates the response before use. | AI estimates may be wrong. Users must be able to edit them, and the local parser remains a fallback. |
+| Database and accounts | AsyncStorage for the MVP; Supabase Postgres and Auth if sync is added | A local-first MVP is faster to build and keeps the judging demo reliable. Supabase can later support secure account sync. | Cloud storage requires row-level security, privacy controls, and a clear deletion path. |
+| Hosting and delivery | Expo Go or an Android build for mobile; Supabase for the Edge Function; optional Expo web export on Vercel | Reviewers can test the mobile flow while the AI request is handled by a managed backend. | Public links, environment variables, API limits, and mobile network failures must be tested before submission. |
 
-The planner first searches allowed free windows, then considers eligible flexible commitments. Each candidate must respect task order, deadlines, fixed events, and protected time. It presents up to two or three feasible options when available, with fewer options if constraints allow only one. If none fits, it reports the unresolved shortfall.
+### System Architecture Diagram
 
-### System Architecture
+Recommended diagram: show the mobile app on the left with dump input, task roadmap, LoadTree, and calendar. Connect the input to a Supabase Edge Function, then to Gemini for task extraction only. Connect the confirmed task to the TypeScript planning engine, then to the option comparison and calendar preview. Show AsyncStorage below the app for local saving. Use a dashed box for optional future Supabase Auth and Postgres sync.
 
-```mermaid
-flowchart TD
-    A[Student text input] --> B[Server-side AI request]
-    B --> C[Editable structured task roadmap]
-    C --> D[Student confirms details]
-    E[Saved commitments and preferences] --> F[Rules-based planning engine]
-    D --> F
-    F --> G{Feasible options?}
-    G -->|Yes| H[Trade-off cards and shared Tree-Calendar preview]
-    G -->|No| I[Explain shortfall and possible next actions]
-    H --> J[Student approves]
-    J --> K[Save approved plan]
-    K --> L[Next action and progress update]
-    L -->|Remaining work confirmed| F
-```
+### Current Feasibility Evidence
 
-AI helps structure the input. The planning engine checks feasibility, and the student authorises changes. If AI extraction fails, manual task entry keeps the core flow usable.
+- The repository contains the complete LoadTree interface, task input flow, calendar views, load calculations, planning rules, trade-off options, preview, approval, progress updates, persistence, undo, and error handling.
+- A Supabase Edge Function and mobile client are already prepared for Gemini-based task extraction. The remaining work is deployment, secret configuration, live testing, and prompt refinement.
+- Automated tests cover load scoring, planning, conflict handling, calendar dates, setup, persistence, undo, and the main user flows. The current test suite passes.
 
-### Build Plan & Scope
+### Build Plan and Scope
 
-**MVP deliverables:**
-
-- Manual weekly setup with recurring commitments and protected time.
-- Text capture and an editable roadmap of approximately 3-5 subtasks.
-- Tree and internal Calendar views driven by the same plan data.
-- A small set of scheduling and rebalancing strategies with explicit trade-offs.
-- Preview, approval, cancellation, and undo for plan changes.
-- A next-action card and brief progress updates.
-- A no-fit state with a clear explanation.
-- One complete demonstrated student scenario and a small usability evaluation.
-
-**Outside the MVP:**
-
-- AI completing student work, writing emails or documentation, or sending messages.
-- Full external calendar synchronisation.
-- Voice and file ingestion.
-- Automatic rescheduling without approval.
-- A resource marketplace or broad tutorial library.
-- Clinical stress prediction or automatically learned capacity claims.
-
-### Three-Week Build Plan
-
-| Week | Focus and completion target |
+| Priority | What we will build |
 |---|---|
-| Week 1 | Finalise task data and planning rules; verify one feasible and one impossible schedule; build setup, Tree, and basic Calendar with sample data. |
-| Week 2 | Connect text extraction, editable subtasks, trade-off generation, previews, and saving approved plans. |
-| Week 3 | Add progress-based replanning, next actions, no-fit explanations, undo, usability checks, and public demo deployment. |
+| 1. Live AI connection | Deploy the Supabase Edge Function, configure Gemini securely, and test task extraction with real student inputs. |
+| 2. Editable AI review | Let the student correct the task title, deadline, subtasks, and estimates before planning starts. |
+| 3. Real calendar horizon | Replace the fixed demo week with the current date and a rolling planning period while keeping the same tested planning rules. |
+| 4. End-to-end overload flow | Connect accepted tasks to the capacity check, three or four rebalancing options when feasible, trade-off comparison, calendar preview, approval, and undo. |
+| 5. Reliability and accessibility | Add loading, timeout, and offline states; test readable text, touch targets, colour-independent labels, and reduced motion on mobile. |
+| 6. Demo and deployment | Prepare one complete student scenario, capture the required screens, build the public prototype, and test every link in an incognito window. |
 
-For a two-person team, a proposed split is one workstream for interface and prototype flow and one for data, AI extraction, and planning rules, with integration and evaluation shared. Individual ownership will be agreed by the team. We will keep API use to task capture and explicit edits, rather than repeatedly calling an LLM for calendar calculations. Provider pricing and a spending cap will be checked before enabling requests; manual entry provides a fallback.
+### MVP Boundaries
 
-### Risks and Mitigations
+- The AI will structure tasks and estimate effort. It will not complete assignments, send emails, or perform research for the student.
+- The planner will suggest changes. It will not change the calendar without the student's approval.
+- The MVP will use the internal calendar and local storage. Full Google or Apple Calendar sync is outside the first build unless the core flow is stable early.
+- Load scores are planning indicators based on entered information. They are not a medical diagnosis or a prediction of mental health.
 
-| Risk | Mitigation |
-|---|---|
-| AI suggests inaccurate durations or subtasks | Require review, support manual editing, and retain a manual entry path. |
-| Existing commitments are missing | Use recurring setup, easy corrections, and a visible reminder that the forecast depends on entered data. |
-| Checking progress becomes burdensome | Allow updates anytime; use dismissible in-app check-ins and leave unanswered tasks unconfirmed. |
-| A suggested plan breaks a constraint | Validate candidate plans against deadlines, order, fixed events, and protected time before previewing them. |
-| No feasible schedule exists | Show unresolved work and possible renegotiation instead of inventing a successful plan. |
-| Two-person scope becomes too large | Prioritise the complete core loop and defer additional input formats and integrations. |
-| Sensitive student information is stored | Collect only necessary task data, isolate user records, and include deletion controls in the data design. |
+## References
+
+- Brady, A. C., Wolters, C. A., and Yu, S. L. (2022). *Self-regulation of time: The importance of time estimation accuracy*. Frontiers in Psychology, 13, 925812. [https://doi.org/10.3389/fpsyg.2022.925812](https://doi.org/10.3389/fpsyg.2022.925812)
+- Google Calendar Help. *Create and manage tasks in Google Calendar*.
+- Notion Help Center. *Notion AI for databases*.
+- Notion Help Center. *Manage calendars and events in Notion Calendar*.
