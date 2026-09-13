@@ -90,9 +90,7 @@ The mentor's feedback guided the scope reduction. The trade-off comparison and p
 
 ## 3. Design and Prototype
 
-**UI Prototype:** To be added
-
-Check the final link in an incognito window before submission.
+**UI Prototype:** [Figma](https://www.figma.com/design/6KvOnFCkYjivM3w06tqNJV/Untitled?node-id=0-1&t=NIR9J4Ju7celVYdY-1)
 
 ### Key Screens
 
