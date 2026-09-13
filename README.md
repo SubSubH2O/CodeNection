@@ -2,8 +2,8 @@
 
 **Team:** Seow Jiun Wen and Low Jia Qing  
 **Problem Statement:** Stress and Workload Manager  
-**Video Presentation:** To be added  
-**Presentation Slides:** To be added
+**Video Presentation:** https://youtu.be/lv28DyB8EhE   
+**Presentation Slides:** https://canva.link/3oxzu65p7bhryc9
 
 ## 1. Project Overview
 
